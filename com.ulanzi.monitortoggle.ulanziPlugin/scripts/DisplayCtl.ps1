@@ -166,7 +166,7 @@ public static class DisplayConfigController
         }
 
         SaveSnapshotFromState(state, snapshotPath);
-        Apply(remaining, state.Modes);
+        Apply(remaining, PrepareModesForDisable(state, remaining));
 
         DisplayInfo[] displays = ListDisplays();
         return new OperationResult
@@ -283,6 +283,98 @@ public static class DisplayConfigController
         }
 
         return null;
+    }
+
+    private static DISPLAYCONFIG_MODE_INFO[] PrepareModesForDisable(DisplayState state, DISPLAYCONFIG_PATH_INFO[] remaining)
+    {
+        DISPLAYCONFIG_MODE_INFO[] modes = state.Modes.ToArray();
+        if (remaining.Length == 0 || HasPrimarySourceMode(modes, remaining))
+        {
+            return modes;
+        }
+
+        DISPLAYCONFIG_PATH_INFO? newPrimaryPath = ChooseNewPrimaryPath(modes, remaining);
+        if (!newPrimaryPath.HasValue)
+        {
+            return modes;
+        }
+
+        DISPLAYCONFIG_SOURCE_MODE? newPrimarySourceMode = FindSourceMode(
+            modes,
+            newPrimaryPath.Value.sourceInfo.adapterId,
+            newPrimaryPath.Value.sourceInfo.id);
+
+        if (!newPrimarySourceMode.HasValue)
+        {
+            return modes;
+        }
+
+        int offsetX = newPrimarySourceMode.Value.position.x;
+        int offsetY = newPrimarySourceMode.Value.position.y;
+        if (offsetX == 0 && offsetY == 0)
+        {
+            return modes;
+        }
+
+        HashSet<string> remainingSources = new HashSet<string>(
+            remaining.Select(path => SourceKey(path.sourceInfo.adapterId, path.sourceInfo.id)),
+            StringComparer.OrdinalIgnoreCase);
+
+        for (int index = 0; index < modes.Length; index++)
+        {
+            DISPLAYCONFIG_MODE_INFO mode = modes[index];
+            if (mode.infoType != DISPLAYCONFIG_MODE_INFO_TYPE.SOURCE ||
+                !remainingSources.Contains(SourceKey(mode.adapterId, mode.id)))
+            {
+                continue;
+            }
+
+            DISPLAYCONFIG_SOURCE_MODE sourceMode = mode.modeInfo.sourceMode;
+            sourceMode.position.x -= offsetX;
+            sourceMode.position.y -= offsetY;
+            mode.modeInfo.sourceMode = sourceMode;
+            modes[index] = mode;
+        }
+
+        return modes;
+    }
+
+    private static bool HasPrimarySourceMode(DISPLAYCONFIG_MODE_INFO[] modes, DISPLAYCONFIG_PATH_INFO[] paths)
+    {
+        foreach (DISPLAYCONFIG_PATH_INFO path in paths)
+        {
+            DISPLAYCONFIG_SOURCE_MODE? sourceMode = FindSourceMode(modes, path.sourceInfo.adapterId, path.sourceInfo.id);
+            if (sourceMode.HasValue && sourceMode.Value.position.x == 0 && sourceMode.Value.position.y == 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static DISPLAYCONFIG_PATH_INFO? ChooseNewPrimaryPath(DISPLAYCONFIG_MODE_INFO[] modes, DISPLAYCONFIG_PATH_INFO[] paths)
+    {
+        DISPLAYCONFIG_PATH_INFO? bestPath = null;
+        long bestScore = long.MaxValue;
+
+        foreach (DISPLAYCONFIG_PATH_INFO path in paths)
+        {
+            DISPLAYCONFIG_SOURCE_MODE? sourceMode = FindSourceMode(modes, path.sourceInfo.adapterId, path.sourceInfo.id);
+            if (!sourceMode.HasValue)
+            {
+                continue;
+            }
+
+            long score = Math.Abs((long)sourceMode.Value.position.x) + Math.Abs((long)sourceMode.Value.position.y);
+            if (!bestPath.HasValue || score < bestScore)
+            {
+                bestPath = path;
+                bestScore = score;
+            }
+        }
+
+        return bestPath;
     }
 
     private static void SaveSnapshotFromState(DisplayState state, string snapshotPath)
@@ -429,6 +521,11 @@ public static class DisplayConfigController
     private static string TargetKey(LUID adapterId, uint targetId)
     {
         return String.Format("{0:X8}:{1:X8}:{2}", unchecked((uint)adapterId.HighPart), adapterId.LowPart, targetId);
+    }
+
+    private static string SourceKey(LUID adapterId, uint sourceId)
+    {
+        return String.Format("{0:X8}:{1:X8}:{2}", unchecked((uint)adapterId.HighPart), adapterId.LowPart, sourceId);
     }
 
     private static bool SameLuid(LUID left, LUID right)

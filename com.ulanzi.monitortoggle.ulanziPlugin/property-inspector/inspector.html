@@ -178,7 +178,7 @@
       function syncTargetKeys() {
         selectedKeys = normalizeSelections(selectedKeys);
         targetKeysInput.value = savedKeys(selectedKeys).join("\n");
-        addMonitorButton.style.display = modeInput.value === "group" ? "" : "none";
+        addMonitorButton.style.display = modeInput.value === "group" ? "inline-block" : "none";
       }
 
       function setStatus(message) {
