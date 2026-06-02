@@ -52,7 +52,7 @@ const DEFAULT_COLORS = {
   inactive: "#334155",
   foreground: "#ecfeff"
 };
-const ICON_PRESETS = new Set(["auto", "monitor", "group", "power", "sleep", "blank"]);
+const ICON_PRESETS = new Set(["auto", "monitor", "group"]);
 
 function normalizeColor(value, fallback) {
   const color = String(value || "").trim();
@@ -237,21 +237,6 @@ function iconGlyph(preset, foreground, background) {
   <rect x="44" y="60" width="48" height="28" rx="3" fill="${background}" opacity="0.82"/>
   <rect x="62" y="102" width="14" height="10" fill="${foreground}"/>
   <rect x="48" y="114" width="42" height="8" rx="4" fill="${foreground}"/>`;
-    case "power":
-      return `
-  <path d="M72 28v38" fill="none" stroke="${foreground}" stroke-width="12" stroke-linecap="round"/>
-  <path d="M48 48a38 38 0 1 0 48 0" fill="none" stroke="${foreground}" stroke-width="12" stroke-linecap="round"/>`;
-    case "sleep":
-      return `
-  <path d="M84 28c-22 6-38 26-38 49 0 21 13 39 31 47-4 1-9 2-14 2-29 0-52-23-52-52 0-28 22-51 50-52 9 0 16 2 23 6z" fill="${foreground}"/>
-  <path d="M90 58h28l-28 30h30" fill="none" stroke="${background}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.72"/>`;
-    case "blank":
-      return `
-  <rect x="26" y="34" width="88" height="58" rx="8" fill="${foreground}"/>
-  <rect x="38" y="46" width="64" height="34" rx="3" fill="${background}" opacity="0.92"/>
-  <path d="M40 80l62-34" stroke="${foreground}" stroke-width="6" stroke-linecap="round" opacity="0.65"/>
-  <rect x="64" y="98" width="16" height="12" fill="${foreground}"/>
-  <rect x="50" y="112" width="44" height="8" rx="4" fill="${foreground}"/>`;
     case "monitor":
     default:
       return `
