@@ -32,6 +32,15 @@
         min-width: 0;
       }
 
+      #monitor-selectors {
+        display: grid;
+        gap: 8px;
+      }
+
+      #add-monitor {
+        display: none;
+      }
+
       .icon-button {
         width: 32px;
         min-width: 32px;
@@ -101,6 +110,7 @@
       let selectedKeys = [];
       let loadingDisplays = false;
       let hasAppliedSettings = false;
+      let hasRequestedInitialState = false;
 
       function splitTargetKeys(value) {
         return String(value || "")
@@ -149,6 +159,20 @@
             .map((key) => String(key || "").trim())
             .filter(Boolean)
         )];
+      }
+
+      function hasSettings(settings) {
+        return Boolean(
+          settings &&
+          (
+            Object.prototype.hasOwnProperty.call(settings, "mode") ||
+            Object.prototype.hasOwnProperty.call(settings, "targetKeys")
+          )
+        );
+      }
+
+      function hasSelectedTargets() {
+        return savedKeys(selectedKeys).length > 0;
       }
 
       function syncTargetKeys() {
@@ -230,6 +254,11 @@
       }
 
       function applySettings(settings) {
+        if (!hasSettings(settings)) {
+          renderTargetSelectors();
+          return;
+        }
+
         hasAppliedSettings = true;
         Utils.setFormValue(settings || {}, FORM_SELECTOR);
         selectedKeys = splitTargetKeys(settings?.targetKeys);
@@ -255,12 +284,22 @@
         $UD.sendToPlugin({ type: "listDisplays" });
       }
 
-      $UD.connect(ACTION_UUID);
+      function hydrateInspector() {
+        if (hasRequestedInitialState) {
+          return;
+        }
+
+        hasRequestedInitialState = true;
+        renderTargetSelectors();
+        $UD.getSettings();
+        requestDisplays();
+      }
+
+      $UD.onConnected(hydrateInspector);
 
       $UD.onAdd((message) => {
         applySettings(message?.param || {});
-        $UD.getSettings();
-        requestDisplays();
+        hydrateInspector();
       });
 
       $UD.onDidReceiveSettings((message) => {
@@ -276,7 +315,7 @@
         loadingDisplays = false;
         displays = Array.isArray(payload.displays) ? payload.displays : [];
 
-        if (!hasAppliedSettings && payload.settings) {
+        if (payload.settings && (!hasAppliedSettings || !hasSelectedTargets())) {
           applySettings(payload.settings);
           return;
         }
@@ -302,6 +341,9 @@
       });
 
       refreshMonitorsButton.addEventListener("click", requestDisplays);
+
+      renderTargetSelectors();
+      $UD.connect(ACTION_UUID);
     </script>
   </body>
 </html>
