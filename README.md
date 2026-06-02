@@ -60,6 +60,11 @@ ulanzi-monitor-toggle/
 Clone the repository, then install the plugin dependencies from the repository root:
 
 ```powershell
+git clone https://github.com/oldbugo/ulanzi-monitor-toggle.git
+cd ulanzi-monitor-toggle
+```
+
+```powershell
 npm run install:plugin
 ```
 
@@ -89,27 +94,27 @@ Restart Ulanzi Deck after copying the plugin so the JavaScript service and Power
 Copy and paste this prompt into your AI assistant of choice:
 
 ```text
-I want help setting up the Ulanzi Monitor Toggle plugin on Windows 11.
+Help me set up the Ulanzi Monitor Toggle plugin on Windows 11.
 
-Project context:
-- This is a Windows-only Ulanzi D200H JavaScript plugin.
-- The plugin package folder is named com.ulanzi.monitortoggle.ulanziPlugin.
-- The plugin disables and re-enables Windows displays using a source-visible PowerShell backend at com.ulanzi.monitortoggle.ulanziPlugin\scripts\DisplayCtl.ps1.
-- It does not bundle a native executable.
-- Setup should not disable or toggle any monitors. Only run non-destructive validation/list commands.
-- The local Ulanzi plugin install folder should be %APPDATA%\Ulanzi\UlanziDeck\Plugins\com.ulanzi.monitortoggle.ulanziPlugin.
+Repository:
+https://github.com/oldbugo/ulanzi-monitor-toggle
 
-Please guide me through setup by doing the following:
-1. Confirm I am in the repository root that contains package.json and the com.ulanzi.monitortoggle.ulanziPlugin folder.
-2. Run npm run install:plugin.
-3. Run npm run validate:json.
-4. Run npm run backend:list and confirm it returns JSON for active displays.
-5. Run npm run node:list and confirm the Node service can call the backend.
-6. Copy com.ulanzi.monitortoggle.ulanziPlugin into %APPDATA%\Ulanzi\UlanziDeck\Plugins\com.ulanzi.monitortoggle.ulanziPlugin.
-7. Tell me to restart Ulanzi Deck.
-8. After restart, help me add Monitor Toggle: Toggle Monitor to a D200H key and select a monitor from the property inspector.
+Use the repository README as the source of truth. If useful, also read PLAN.md for implementation context and VERIFICATION.md for historical validation notes.
 
-Use PowerShell commands. Do not run DisplayCtl.ps1 with disable, enable, restore, or toggle unless I explicitly ask after setup is complete.
+Setup constraints:
+- Use PowerShell commands.
+- Setup only; do not disable, enable, restore, or toggle any monitors.
+- Only run non-destructive validation/list commands unless I explicitly ask for monitor toggle testing later.
+
+Please help me:
+1. Clone or locate the repository.
+2. Install plugin dependencies.
+3. Run the non-destructive validation/list checks from the README.
+4. Copy com.ulanzi.monitortoggle.ulanziPlugin into the local Ulanzi plugin folder.
+5. Restart Ulanzi Deck.
+6. Add Monitor Toggle: Toggle Monitor to a D200H key and select a monitor from the property inspector.
+
+If you cannot access the repo online, ask me for the local folder path and continue from the cloned repository.
 ```
 
 ## Configure A Button
