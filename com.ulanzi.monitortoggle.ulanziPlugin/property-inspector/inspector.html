@@ -11,19 +11,53 @@
     <script src="../libs/js/ulanziApi.js"></script>
     <style>
       :root { 
-        --uspi-width: 500px;
-        --uspi-label-width: 96px;
+        --uspi-label-width: 88px;
+      }
+
+      html,
+      body {
+        overflow-x: hidden;
       }
 
       .uspi-wrapper {
         padding-top: 2px;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+
+      .uspi-wrapper .uspi-item {
+        align-items: center;
+        margin: 10px 8px;
+        max-width: calc(100% - 16px);
+        width: calc(100% - 16px);
+      }
+
+      .uspi-wrapper .uspi-item-label {
+        flex: 0 0 var(--uspi-label-width);
+        width: var(--uspi-label-width);
+      }
+
+      .uspi-wrapper .uspi-item-value {
+        flex: 1 1 auto;
+        max-width: 100%;
+        min-width: 0;
+        width: auto;
+      }
+
+      .monitors-item {
+        align-items: flex-start;
+      }
+
+      .monitors-item .uspi-item-label {
+        padding-top: 6px;
       }
 
       .monitor-row {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 36px;
+        grid-template-columns: minmax(0, 1fr) 34px;
         gap: 8px;
-        width: var(--uspi-width);
+        width: 100%;
       }
 
       .monitor-row select,
@@ -41,12 +75,13 @@
       }
 
       .icon-button {
-        width: 36px;
-        min-width: 36px;
+        height: var(--uspi-height);
+        min-width: 34px;
         padding: 0;
         border-radius: var(--uspi-borderradius);
         font-size: 18px;
         line-height: 1;
+        width: 34px;
       }
 
       .stacked-value {
@@ -57,12 +92,14 @@
 
       .toolbar {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
       }
 
       .toolbar button {
+        flex: 0 1 auto;
+        min-width: 88px;
         width: auto;
-        min-width: 96px;
       }
 
       .status {
@@ -79,7 +116,7 @@
   </head>
   <body>
     <form id="property-inspector" class="uspi-wrapper">
-      <div class="uspi-item">
+      <div class="uspi-item monitors-item">
         <div class="uspi-item-label" data-localize>Mode</div>
         <select class="uspi-item-value" name="mode">
           <option value="single">Single monitor</option>
