@@ -165,7 +165,11 @@ public static class DisplayConfigController
             throw new InvalidOperationException("Refusing to disable every active display.");
         }
 
-        SaveSnapshotFromState(state, snapshotPath);
+        if (!File.Exists(snapshotPath))
+        {
+            SaveSnapshotFromState(state, snapshotPath);
+        }
+
         Apply(remaining, PrepareModesForDisable(state, remaining));
 
         DisplayInfo[] displays = ListDisplays();
@@ -194,6 +198,7 @@ public static class DisplayConfigController
 
         DisplayState state = ReadSnapshot(snapshotPath);
         Apply(state.Paths, state.Modes);
+        TryDeleteSnapshot(snapshotPath);
 
         DisplayInfo[] displays = ListDisplays();
         return new OperationResult
@@ -410,6 +415,17 @@ public static class DisplayConfigController
                 Paths = ReadStructArray<DISPLAYCONFIG_PATH_INFO>(reader),
                 Modes = ReadStructArray<DISPLAYCONFIG_MODE_INFO>(reader)
             };
+        }
+    }
+
+    private static void TryDeleteSnapshot(string snapshotPath)
+    {
+        try
+        {
+            File.Delete(snapshotPath);
+        }
+        catch
+        {
         }
     }
 

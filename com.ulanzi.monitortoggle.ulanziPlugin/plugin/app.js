@@ -58,7 +58,7 @@ function normalizeSettings(raw = {}) {
 
 function snapshotPathFor(context) {
   const stableName = String(context || "default").replace(/[^a-zA-Z0-9._-]+/g, "_");
-  return path.join(stateRoot, `${ACTION_UUID}.${stableName}.bin`);
+  return path.join(stateRoot, `${ACTION_UUID}.${stableName}.full-layout.bin`);
 }
 
 function contextFrom(message = {}) {

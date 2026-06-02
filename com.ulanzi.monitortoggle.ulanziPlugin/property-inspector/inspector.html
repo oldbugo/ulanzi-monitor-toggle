@@ -11,24 +11,23 @@
     <script src="../libs/js/ulanziApi.js"></script>
     <style>
       :root { 
-        --uspi-width: 490px;
-        --uspi-label-width: 120px;
+        --uspi-width: 500px;
+        --uspi-label-width: 96px;
       }
 
-      textarea {
-        font-family: Consolas, "Courier New", monospace;
-        min-height: 88px;
-        resize: vertical;
+      .uspi-wrapper {
+        padding-top: 2px;
       }
 
       .monitor-row {
-        display: flex;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 36px;
         gap: 8px;
         width: var(--uspi-width);
       }
 
-      .monitor-row select {
-        flex: 1;
+      .monitor-row select,
+      select.uspi-item-value {
         min-width: 0;
       }
 
@@ -42,16 +41,18 @@
       }
 
       .icon-button {
-        width: 32px;
-        min-width: 32px;
+        width: 36px;
+        min-width: 36px;
         padding: 0;
         border-radius: var(--uspi-borderradius);
+        font-size: 18px;
+        line-height: 1;
       }
 
       .stacked-value {
         align-items: stretch;
         flex-direction: column;
-        gap: 8px;
+        gap: 10px;
       }
 
       .toolbar {
@@ -61,6 +62,7 @@
 
       .toolbar button {
         width: auto;
+        min-width: 96px;
       }
 
       .status {
@@ -68,6 +70,10 @@
         color: var(--uspi-unitcolor);
         font-size: 12px;
         overflow-wrap: anywhere;
+      }
+
+      .muted-option {
+        color: var(--uspi-unitcolor);
       }
     </style>
   </head>
@@ -222,11 +228,13 @@
 
         row.appendChild(select);
 
-        if (modeInput.value === "group") {
+        if (modeInput.value === "group" && selectedKeys.length > 1) {
           const remove = document.createElement("button");
           remove.className = "icon-button";
           remove.type = "button";
-          remove.textContent = "-";
+          remove.title = "Remove monitor";
+          remove.setAttribute("aria-label", "Remove monitor");
+          remove.textContent = "x";
           remove.addEventListener("click", () => {
             selectedKeys.splice(index, 1);
             syncTargetKeys();
@@ -234,6 +242,10 @@
             saveSettings();
           });
           row.appendChild(remove);
+        } else if (modeInput.value === "group") {
+          const spacer = document.createElement("span");
+          spacer.setAttribute("aria-hidden", "true");
+          row.appendChild(spacer);
         }
 
         return row;
