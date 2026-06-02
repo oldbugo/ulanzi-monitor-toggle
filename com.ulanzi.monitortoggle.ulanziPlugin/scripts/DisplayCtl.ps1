@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("list", "snapshot", "disable", "restore", "is-active", "toggle")]
+    [ValidateSet("list", "snapshot", "disable", "enable", "restore", "is-active", "toggle")]
     [string]$Action,
 
     [string]$TargetKeys = "",
@@ -124,7 +124,7 @@ public static class DisplayConfigController
             return Disable(targetKeys, snapshotPath);
         }
 
-        return Restore(snapshotPath);
+        return Enable(targetKeys, snapshotPath);
     }
 
     public static OperationResult Disable(string[] targetKeys, string snapshotPath)
@@ -179,6 +179,89 @@ public static class DisplayConfigController
             active = false,
             activeDisplayCount = displays.Length,
             matchedTargetCount = matchedCount,
+            snapshotPath = snapshotPath,
+            displays = displays
+        };
+    }
+
+    public static OperationResult Enable(string[] targetKeys, string snapshotPath)
+    {
+        HashSet<string> targets = NormalizeTargetSet(targetKeys);
+        if (targets.Count == 0)
+        {
+            throw new ArgumentException("At least one target key is required.");
+        }
+
+        if (String.IsNullOrWhiteSpace(snapshotPath))
+        {
+            throw new ArgumentException("SnapshotPath is required.");
+        }
+
+        if (!File.Exists(snapshotPath))
+        {
+            throw new FileNotFoundException("Snapshot file was not found.", snapshotPath);
+        }
+
+        DisplayState snapshot = ReadSnapshot(snapshotPath);
+        DisplayState current = QueryActive();
+        HashSet<string> snapshotKeys = new HashSet<string>(
+            snapshot.Paths.Select(path => TargetKey(path.targetInfo.adapterId, path.targetInfo.id)),
+            StringComparer.OrdinalIgnoreCase);
+        HashSet<string> currentKeys = new HashSet<string>(
+            current.Paths.Select(path => TargetKey(path.targetInfo.adapterId, path.targetInfo.id)),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (currentKeys.Any(key => !snapshotKeys.Contains(key)))
+        {
+            throw new InvalidOperationException("Snapshot does not include all currently active displays.");
+        }
+
+        HashSet<string> selectedKeys = new HashSet<string>(
+            targets.Where(target => snapshotKeys.Contains(target)),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (selectedKeys.Count == 0)
+        {
+            DisplayInfo[] unchanged = BuildDisplayInfo(current).ToArray();
+            return new OperationResult
+            {
+                status = "not-found",
+                active = false,
+                activeDisplayCount = unchanged.Length,
+                matchedTargetCount = 0,
+                snapshotPath = snapshotPath,
+                displays = unchanged
+            };
+        }
+
+        HashSet<string> finalKeys = new HashSet<string>(currentKeys, StringComparer.OrdinalIgnoreCase);
+        foreach (string key in selectedKeys)
+        {
+            finalKeys.Add(key);
+        }
+
+        DISPLAYCONFIG_PATH_INFO[] enabledPaths = snapshot.Paths
+            .Where(path => finalKeys.Contains(TargetKey(path.targetInfo.adapterId, path.targetInfo.id)))
+            .ToArray();
+
+        Apply(enabledPaths, PrepareModesForDisable(snapshot, enabledPaths));
+
+        DisplayInfo[] displays = ListDisplays();
+        bool active = targets.All(target => displays.Any(display => String.Equals(display.key, target, StringComparison.OrdinalIgnoreCase)));
+        HashSet<string> activeKeys = new HashSet<string>(
+            displays.Select(display => display.key),
+            StringComparer.OrdinalIgnoreCase);
+        if (snapshotKeys.All(key => activeKeys.Contains(key)))
+        {
+            TryDeleteSnapshot(snapshotPath);
+        }
+
+        return new OperationResult
+        {
+            status = active ? "enabled" : "partial",
+            active = active,
+            activeDisplayCount = displays.Length,
+            matchedTargetCount = selectedKeys.Count,
             snapshotPath = snapshotPath,
             displays = displays
         };
@@ -891,6 +974,9 @@ switch ($Action) {
     }
     "disable" {
         Write-Result ([DisplayConfigController]::Disable($targets, $SnapshotPath))
+    }
+    "enable" {
+        Write-Result ([DisplayConfigController]::Enable($targets, $SnapshotPath))
     }
     "restore" {
         Write-Result ([DisplayConfigController]::Restore($SnapshotPath))

@@ -80,6 +80,34 @@ function snapshotPathFor(context) {
   return path.join(stateRoot, `${ACTION_UUID}.${stableName}.full-layout.bin`);
 }
 
+function snapshotCandidatesFor(context) {
+  const primary = snapshotPathFor(context);
+  const candidates = [];
+
+  if (fs.existsSync(primary)) {
+    candidates.push(primary);
+  }
+
+  if (!fs.existsSync(stateRoot)) {
+    return candidates;
+  }
+
+  const prefix = `${ACTION_UUID}.`;
+  const suffix = ".full-layout.bin";
+  const others = fs.readdirSync(stateRoot)
+    .filter((file) => file.startsWith(prefix) && file.endsWith(suffix))
+    .map((file) => path.join(stateRoot, file))
+    .filter((file) => file !== primary)
+    .map((file) => ({
+      file,
+      modified: fs.statSync(file).mtimeMs
+    }))
+    .sort((left, right) => right.modified - left.modified)
+    .map((entry) => entry.file);
+
+  return candidates.concat(others);
+}
+
 function contextFrom(message = {}) {
   return message.context || message.action || "";
 }
@@ -198,6 +226,27 @@ async function syncButtonState(context, settings) {
   setButtonIcon(context, settings, isSettingsActive(settings, activeKeySet(displays)));
 }
 
+async function enableFromSnapshots(context, settings) {
+  let lastError;
+
+  for (const snapshotPath of snapshotCandidatesFor(context)) {
+    try {
+      const result = await runDisplayCtl("enable", {
+        targetKeys: settings.targetKeys,
+        snapshotPath
+      });
+
+      if (result.matchedTargetCount > 0) {
+        return result;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("No saved display snapshot contains the selected monitor.");
+}
+
 async function toggle(context, rawSettings) {
   const settings = normalizeSettings(rawSettings);
 
@@ -207,10 +256,15 @@ async function toggle(context, rawSettings) {
     return;
   }
 
-  const result = await runDisplayCtl("toggle", {
-    targetKeys: settings.targetKeys,
-    snapshotPath: snapshotPathFor(context)
-  });
+  const current = await runDisplayCtl("list");
+  const currentlyActive = isSettingsActive(settings, activeKeySet(current.displays || []));
+  const result = currentlyActive
+    ? await runDisplayCtl("disable", {
+        targetKeys: settings.targetKeys,
+        snapshotPath: snapshotPathFor(context)
+      })
+    : await enableFromSnapshots(context, settings);
+
   syncButtonStatesFromDisplays(result.displays || []);
 }
 
