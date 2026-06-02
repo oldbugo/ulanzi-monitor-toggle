@@ -55,10 +55,17 @@ ulanzi-monitor-toggle/
 
 ## Setup
 
-Clone the repository, then run these commands from the repository root:
+### Option 1: Manual Setup
+
+Clone the repository, then install the plugin dependencies from the repository root:
 
 ```powershell
 npm run install:plugin
+```
+
+Run the non-destructive setup checks:
+
+```powershell
 npm run validate:json
 npm run backend:list
 npm run node:list
@@ -66,7 +73,7 @@ npm run node:list
 
 `backend:list` and `node:list` are non-destructive. They should print JSON describing the currently active displays.
 
-To install the plugin into the local Ulanzi plugin folder:
+Copy the plugin into the local Ulanzi plugin folder:
 
 ```powershell
 $source = Resolve-Path .\com.ulanzi.monitortoggle.ulanziPlugin
@@ -76,6 +83,34 @@ Copy-Item -Path (Join-Path $source.Path '*') -Destination $destination -Recurse 
 ```
 
 Restart Ulanzi Deck after copying the plugin so the JavaScript service and PowerShell backend reload.
+
+### Option 2: AI-Assisted Setup
+
+Copy and paste this prompt into your AI assistant of choice:
+
+```text
+I want help setting up the Ulanzi Monitor Toggle plugin on Windows 11.
+
+Project context:
+- This is a Windows-only Ulanzi D200H JavaScript plugin.
+- The plugin package folder is named com.ulanzi.monitortoggle.ulanziPlugin.
+- The plugin disables and re-enables Windows displays using a source-visible PowerShell backend at com.ulanzi.monitortoggle.ulanziPlugin\scripts\DisplayCtl.ps1.
+- It does not bundle a native executable.
+- Setup should not disable or toggle any monitors. Only run non-destructive validation/list commands.
+- The local Ulanzi plugin install folder should be %APPDATA%\Ulanzi\UlanziDeck\Plugins\com.ulanzi.monitortoggle.ulanziPlugin.
+
+Please guide me through setup by doing the following:
+1. Confirm I am in the repository root that contains package.json and the com.ulanzi.monitortoggle.ulanziPlugin folder.
+2. Run npm run install:plugin.
+3. Run npm run validate:json.
+4. Run npm run backend:list and confirm it returns JSON for active displays.
+5. Run npm run node:list and confirm the Node service can call the backend.
+6. Copy com.ulanzi.monitortoggle.ulanziPlugin into %APPDATA%\Ulanzi\UlanziDeck\Plugins\com.ulanzi.monitortoggle.ulanziPlugin.
+7. Tell me to restart Ulanzi Deck.
+8. After restart, help me add Monitor Toggle: Toggle Monitor to a D200H key and select a monitor from the property inspector.
+
+Use PowerShell commands. Do not run DisplayCtl.ps1 with disable, enable, restore, or toggle unless I explicitly ask after setup is complete.
+```
 
 ## Configure A Button
 
@@ -101,49 +136,3 @@ Snapshot files are stored under:
 ```
 
 Snapshots are removed after all displays from the saved layout are active again.
-
-## Backend Commands
-
-The PowerShell backend is at:
-
-```text
-com.ulanzi.monitortoggle.ulanziPlugin\scripts\DisplayCtl.ps1
-```
-
-Useful commands:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\com.ulanzi.monitortoggle.ulanziPlugin\scripts\DisplayCtl.ps1 -Action list
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\com.ulanzi.monitortoggle.ulanziPlugin\scripts\DisplayCtl.ps1 -Action is-active -TargetKeys "<display-key>"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\com.ulanzi.monitortoggle.ulanziPlugin\scripts\DisplayCtl.ps1 -Action disable -TargetKeys "<display-key>" -SnapshotPath "$env:TEMP\monitor-toggle-test.bin"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\com.ulanzi.monitortoggle.ulanziPlugin\scripts\DisplayCtl.ps1 -Action enable -TargetKeys "<display-key>" -SnapshotPath "$env:TEMP\monitor-toggle-test.bin"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\com.ulanzi.monitortoggle.ulanziPlugin\scripts\DisplayCtl.ps1 -Action restore -SnapshotPath "$env:TEMP\monitor-toggle-test.bin"
-```
-
-Start with `list`. Do not manually test `disable` against your only active display. The backend has a guard against disabling every active display, but first real tests should target a non-critical monitor.
-
-## Verification
-
-Recommended checks after changes:
-
-```powershell
-npm run validate:json
-npm run backend:list
-npm run node:list
-```
-
-Manual dock checks:
-
-- Single-monitor toggle turns the selected monitor off and back on.
-- Group toggle turns all selected monitors off and back on.
-- Individual buttons update their icon state after a group toggle.
-- An individual button can re-enable a monitor that was turned off by a group toggle.
-- Icon preset and color changes render on the dock.
-
-## Known Limitations
-
-- Windows may move application windows when monitors are disabled. This project currently restores display topology, not individual application window positions.
-- Status updates are event-driven. The plugin refreshes on setup changes, inspector events, and plugin toggles; display changes made outside the plugin may require reopening the inspector, refreshing monitors, or pressing a configured key.
-- PowerShell execution policies or enterprise endpoint controls can block the backend.
-- Docking stations, indirect displays, or hotplug events may change display target identifiers. Re-select monitors if the dropdown no longer maps to the expected physical display.
-- Marketplace acceptance is not guaranteed. The package avoids a bundled `.exe`, but it still launches PowerShell and uses Windows APIs.
