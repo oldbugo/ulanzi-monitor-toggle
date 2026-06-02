@@ -10,111 +10,298 @@
     <script src="../libs/js/utils.js"></script>
     <script src="../libs/js/ulanziApi.js"></script>
     <style>
-      :root {
-        color-scheme: light dark;
-        font-family: Inter, Segoe UI, Arial, sans-serif;
-      }
-
-      body {
-        margin: 0;
-        padding: 16px;
-        background: Canvas;
-        color: CanvasText;
-      }
-
-      .uspi-wrapper {
-        display: grid;
-        gap: 14px;
-        max-width: 420px;
-      }
-
-      label {
-        display: grid;
-        gap: 6px;
-        font-size: 12px;
-        font-weight: 600;
-      }
-
-      input,
-      select,
-      textarea {
-        box-sizing: border-box;
-        width: 100%;
-        border: 1px solid color-mix(in srgb, CanvasText 24%, transparent);
-        border-radius: 6px;
-        padding: 8px 10px;
-        background: Canvas;
-        color: CanvasText;
-        font: inherit;
+      :root { 
+        --uspi-width: 490px;
+        --uspi-label-width: 120px;
       }
 
       textarea {
-        min-height: 92px;
-        resize: vertical;
         font-family: Consolas, "Courier New", monospace;
+        min-height: 88px;
+        resize: vertical;
+      }
+
+      .monitor-row {
+        display: flex;
+        gap: 8px;
+        width: var(--uspi-width);
+      }
+
+      .monitor-row select {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .icon-button {
+        width: 32px;
+        min-width: 32px;
+        padding: 0;
+        border-radius: var(--uspi-borderradius);
+      }
+
+      .stacked-value {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 8px;
+      }
+
+      .toolbar button {
+        width: auto;
+      }
+
+      .status {
+        min-height: 20px;
+        color: var(--uspi-unitcolor);
+        font-size: 12px;
+        overflow-wrap: anywhere;
       }
     </style>
   </head>
   <body>
-    <form id="settings" class="uspi-wrapper">
-      <label>
-        <span data-localize>Label</span>
-        <input name="label" autocomplete="off" placeholder="Desk right">
-      </label>
-
-      <label>
-        <span data-localize>Mode</span>
-        <select name="mode">
+    <form id="property-inspector" class="uspi-wrapper">
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Mode</div>
+        <select class="uspi-item-value" name="mode">
           <option value="single">Single monitor</option>
           <option value="group">Monitor group</option>
         </select>
-      </label>
+      </div>
 
-      <label>
-        <span data-localize>Target keys</span>
-        <textarea name="targetKeys" spellcheck="false" placeholder="adapter-high:adapter-low:target-id"></textarea>
-      </label>
-
-      <label>
-        <span data-localize>Snapshot name</span>
-        <input name="snapshotName" autocomplete="off" placeholder="default">
-      </label>
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Monitors</div>
+        <div class="uspi-item-value stacked-value">
+          <div id="monitor-selectors"></div>
+          <div class="toolbar">
+            <button id="add-monitor" type="button">Add monitor</button>
+            <button id="refresh-monitors" type="button">Refresh</button>
+          </div>
+          <div id="monitor-status" class="status"></div>
+          <input type="hidden" name="targetKeys">
+        </div>
+      </div>
     </form>
 
     <script>
       const ACTION_UUID = "com.ulanzi.ulanzistudio.monitortoggle.toggle";
-      const form = document.getElementById("settings");
-      let settings = {};
+      const FORM_SELECTOR = "#property-inspector";
+      const form = document.querySelector(FORM_SELECTOR);
+      const modeInput = form.elements.mode;
+      const targetKeysInput = form.elements.targetKeys;
+      const monitorSelectors = document.getElementById("monitor-selectors");
+      const addMonitorButton = document.getElementById("add-monitor");
+      const refreshMonitorsButton = document.getElementById("refresh-monitors");
+      const monitorStatus = document.getElementById("monitor-status");
 
-      function readForm() {
-        return Object.fromEntries(new FormData(form).entries());
+      let displays = [];
+      let selectedKeys = [];
+      let loadingDisplays = false;
+      let hasAppliedSettings = false;
+
+      function splitTargetKeys(value) {
+        return String(value || "")
+          .split(/[\n,]+/)
+          .map((item) => item.trim())
+          .filter(Boolean);
       }
 
-      function writeForm(next) {
-        for (const [key, value] of Object.entries(next || {})) {
-          if (form.elements[key]) {
-            form.elements[key].value = value ?? "";
-          }
+      function displayLabel(display) {
+        const name = display.friendlyName || `Display ${display.targetId}`;
+        const source = display.sourceName || "";
+        const primary = display.primary ? "primary" : "";
+        return [name, source, primary].filter(Boolean).join(" - ");
+      }
+
+      function optionLabelForKey(key) {
+        const display = displays.find((item) => item.key === key);
+        return display ? displayLabel(display) : key;
+      }
+
+      function normalizeSelections(keys) {
+        if (modeInput.value === "single") {
+          return savedKeys(keys).slice(0, 1);
         }
+
+        const seen = new Set();
+        return keys
+          .map((key) => String(key || "").trim())
+          .filter((key) => {
+            if (!key) {
+              return true;
+            }
+
+            if (seen.has(key)) {
+              return false;
+            }
+
+            seen.add(key);
+            return true;
+          });
       }
 
-      function save() {
-        settings = readForm();
-        if (window.$UD && typeof window.$UD.sendParamFromPlugin === "function") {
-          window.$UD.sendParamFromPlugin(settings);
+      function savedKeys(keys) {
+        return [...new Set(
+          keys
+            .map((key) => String(key || "").trim())
+            .filter(Boolean)
+        )];
+      }
+
+      function syncTargetKeys() {
+        selectedKeys = normalizeSelections(selectedKeys);
+        targetKeysInput.value = savedKeys(selectedKeys).join("\n");
+        addMonitorButton.style.display = modeInput.value === "group" ? "" : "none";
+      }
+
+      function setStatus(message) {
+        monitorStatus.textContent = message || "";
+      }
+
+      function buildSelect(selectedKey, index) {
+        const row = document.createElement("div");
+        row.className = "monitor-row";
+
+        const select = document.createElement("select");
+        select.className = "uspi-item-value";
+        select.dataset.index = String(index);
+
+        const blank = document.createElement("option");
+        blank.value = "";
+        blank.textContent = displays.length ? "Select monitor" : "No monitors detected";
+        select.appendChild(blank);
+
+        for (const display of displays) {
+          const option = document.createElement("option");
+          option.value = display.key;
+          option.textContent = displayLabel(display);
+          select.appendChild(option);
         }
-      }
 
-      form.addEventListener("input", save);
-      form.addEventListener("change", save);
+        if (selectedKey && !displays.some((display) => display.key === selectedKey)) {
+          const option = document.createElement("option");
+          option.value = selectedKey;
+          option.textContent = `${optionLabelForKey(selectedKey)} - unavailable`;
+          select.appendChild(option);
+        }
 
-      if (window.$UD && typeof window.$UD.connect === "function") {
-        window.$UD.connect(ACTION_UUID);
-        window.$UD.onAdd((message) => {
-          settings = message?.param || {};
-          writeForm(settings);
+        select.value = selectedKey || "";
+        select.addEventListener("change", () => {
+          selectedKeys[index] = select.value;
+          syncTargetKeys();
+          renderTargetSelectors();
+          saveSettings();
         });
+
+        row.appendChild(select);
+
+        if (modeInput.value === "group") {
+          const remove = document.createElement("button");
+          remove.className = "icon-button";
+          remove.type = "button";
+          remove.textContent = "-";
+          remove.addEventListener("click", () => {
+            selectedKeys.splice(index, 1);
+            syncTargetKeys();
+            renderTargetSelectors();
+            saveSettings();
+          });
+          row.appendChild(remove);
+        }
+
+        return row;
       }
+
+      function renderTargetSelectors() {
+        syncTargetKeys();
+        monitorSelectors.replaceChildren();
+
+        const rowCount = Math.max(1, selectedKeys.length);
+        for (let index = 0; index < rowCount; index += 1) {
+          monitorSelectors.appendChild(buildSelect(selectedKeys[index] || "", index));
+        }
+
+        if (!loadingDisplays && displays.length) {
+          setStatus(`${displays.length} active monitor${displays.length === 1 ? "" : "s"} detected.`);
+        }
+      }
+
+      function applySettings(settings) {
+        hasAppliedSettings = true;
+        Utils.setFormValue(settings || {}, FORM_SELECTOR);
+        selectedKeys = splitTargetKeys(settings?.targetKeys);
+        renderTargetSelectors();
+      }
+
+      function readSettings() {
+        syncTargetKeys();
+        return Utils.getFormValue(FORM_SELECTOR);
+      }
+
+      function saveSettings() {
+        const settings = readSettings();
+        $UD.setSettings(settings);
+        $UD.sendParamFromPlugin(settings);
+      }
+
+      const debouncedSave = Utils.debounce(saveSettings, 150);
+
+      function requestDisplays() {
+        loadingDisplays = true;
+        setStatus("Loading monitors...");
+        $UD.sendToPlugin({ type: "listDisplays" });
+      }
+
+      $UD.connect(ACTION_UUID);
+
+      $UD.onAdd((message) => {
+        applySettings(message?.param || {});
+        $UD.getSettings();
+        requestDisplays();
+      });
+
+      $UD.onDidReceiveSettings((message) => {
+        applySettings(message?.settings || message?.param || {});
+      });
+
+      $UD.onSendToPropertyInspector((message) => {
+        const payload = message?.payload || {};
+        if (payload.type !== "displayList") {
+          return;
+        }
+
+        loadingDisplays = false;
+        displays = Array.isArray(payload.displays) ? payload.displays : [];
+
+        if (!hasAppliedSettings && payload.settings) {
+          applySettings(payload.settings);
+          return;
+        }
+
+        renderTargetSelectors();
+        if (payload.error) {
+          setStatus(payload.error);
+        }
+      });
+
+      form.addEventListener("input", debouncedSave);
+      form.addEventListener("change", saveSettings);
+
+      modeInput.addEventListener("change", () => {
+        selectedKeys = normalizeSelections(selectedKeys);
+        renderTargetSelectors();
+        saveSettings();
+      });
+
+      addMonitorButton.addEventListener("click", () => {
+        selectedKeys.push("");
+        renderTargetSelectors();
+      });
+
+      refreshMonitorsButton.addEventListener("click", requestDisplays);
     </script>
   </body>
 </html>

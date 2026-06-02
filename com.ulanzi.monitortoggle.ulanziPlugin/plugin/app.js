@@ -39,8 +39,10 @@ try {
   };
 }
 
-const ACTION_UUID = "com.ulanzi.ulanzistudio.monitortoggle.toggle";
+const PLUGIN_UUID = "com.ulanzi.ulanzistudio.monitortoggle";
+const ACTION_UUID = `${PLUGIN_UUID}.toggle`;
 const $UD = new UlanziApi();
+const settingsByContext = new Map();
 
 function normalizeSettings(raw = {}) {
   const targetKeys = String(raw.targetKeys || "")
@@ -49,16 +51,44 @@ function normalizeSettings(raw = {}) {
     .filter(Boolean);
 
   return {
-    label: String(raw.label || "").trim(),
     mode: raw.mode === "group" ? "group" : "single",
-    snapshotName: String(raw.snapshotName || "default").trim() || "default",
     targetKeys
   };
 }
 
-function snapshotPathFor(settings) {
-  const stableName = settings.snapshotName.replace(/[^a-zA-Z0-9._-]+/g, "_");
+function snapshotPathFor(context) {
+  const stableName = String(context || "default").replace(/[^a-zA-Z0-9._-]+/g, "_");
   return path.join(stateRoot, `${ACTION_UUID}.${stableName}.bin`);
+}
+
+function contextFrom(message = {}) {
+  return message.context || message.action || "";
+}
+
+function settingsFrom(message = {}) {
+  return message.param || message.settings || {};
+}
+
+function cacheSettings(message = {}) {
+  const context = contextFrom(message);
+  if (!context) {
+    return normalizeSettings(settingsFrom(message));
+  }
+
+  const settings = normalizeSettings(settingsFrom(message));
+  settingsByContext.set(context, settings);
+  return settings;
+}
+
+function currentSettings(message = {}) {
+  const context = contextFrom(message);
+  const incoming = settingsFrom(message);
+
+  if (incoming && Object.keys(incoming).length > 0) {
+    return cacheSettings(message);
+  }
+
+  return settingsByContext.get(context) || normalizeSettings({});
 }
 
 function runDisplayCtl(action, options = {}) {
@@ -120,8 +150,7 @@ async function syncButtonState(context, settings) {
     targetKeys: settings.targetKeys
   });
   const active = Boolean(result.active);
-  const title = settings.label || (active ? "On" : "Off");
-  $UD.setStateIcon(context, active ? 0 : 1, title);
+  $UD.setStateIcon(context, active ? 0 : 1, active ? "On" : "Off");
 }
 
 async function toggle(context, rawSettings) {
@@ -135,11 +164,35 @@ async function toggle(context, rawSettings) {
 
   const result = await runDisplayCtl("toggle", {
     targetKeys: settings.targetKeys,
-    snapshotPath: snapshotPathFor(settings)
+    snapshotPath: snapshotPathFor(context)
   });
   const active = Boolean(result.active);
-  const title = settings.label || (active ? "On" : "Off");
-  $UD.setStateIcon(context, active ? 0 : 1, title);
+  $UD.setStateIcon(context, active ? 0 : 1, active ? "On" : "Off");
+}
+
+async function sendDisplayList(context) {
+  try {
+    const result = await runDisplayCtl("list");
+    $UD.sendToPropertyInspector?.(
+      {
+        type: "displayList",
+        displays: result.displays || [],
+        settings: settingsByContext.get(context)
+      },
+      context
+    );
+  } catch (error) {
+    $UD.logMessage?.(`Monitor Toggle display discovery failed: ${error.message}`);
+    $UD.sendToPropertyInspector?.(
+      {
+        type: "displayList",
+        displays: [],
+        settings: settingsByContext.get(context),
+        error: error.message
+      },
+      context
+    );
+  }
 }
 
 if (process.argv.includes("--list-displays")) {
@@ -148,19 +201,52 @@ if (process.argv.includes("--list-displays")) {
   process.exit(0);
 }
 
-$UD.connect(ACTION_UUID);
+$UD.connect(PLUGIN_UUID);
 
 $UD.onAdd?.((message) => {
-  const context = message?.context || message?.action || "";
-  const settings = normalizeSettings(message?.param || message?.settings || {});
+  const context = contextFrom(message);
+  const settings = cacheSettings(message);
   syncButtonState(context, settings).catch((error) => {
     $UD.logMessage?.(`Monitor Toggle state sync failed: ${error.message}`);
   });
 });
 
+$UD.onParamFromPlugin?.((message) => {
+  const context = contextFrom(message);
+  const settings = cacheSettings(message);
+  syncButtonState(context, settings).catch((error) => {
+    $UD.logMessage?.(`Monitor Toggle state sync failed: ${error.message}`);
+  });
+});
+
+$UD.onParamFromApp?.((message) => {
+  const context = contextFrom(message);
+  const settings = cacheSettings(message);
+  syncButtonState(context, settings).catch((error) => {
+    $UD.logMessage?.(`Monitor Toggle state sync failed: ${error.message}`);
+  });
+});
+
+$UD.onDidReceiveSettings?.((message) => {
+  const context = contextFrom(message);
+  const settings = cacheSettings(message);
+  syncButtonState(context, settings).catch((error) => {
+    $UD.logMessage?.(`Monitor Toggle state sync failed: ${error.message}`);
+  });
+});
+
+$UD.onSendToPlugin?.((message) => {
+  const context = contextFrom(message);
+  const payload = message?.payload || {};
+
+  if (payload.type === "listDisplays") {
+    sendDisplayList(context);
+  }
+});
+
 $UD.onRun?.((message) => {
-  const context = message?.context || message?.action || "";
-  toggle(context, message?.param || message?.settings || {}).catch((error) => {
+  const context = contextFrom(message);
+  toggle(context, currentSettings(message)).catch((error) => {
     $UD.logMessage?.(`Monitor Toggle failed: ${error.message}`);
     $UD.showAlert?.(context);
   });
