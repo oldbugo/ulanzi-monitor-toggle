@@ -1,0 +1,48 @@
+{
+  "Author": "Local prototype",
+  "Name": "Monitor Toggle",
+  "Description": "Toggle selected Windows displays from the active desktop topology.",
+  "Version": "0.1.0",
+  "UUID": "com.ulanzi.ulanzistudio.monitortoggle",
+  "Type": "JavaScript",
+  "CodePath": "plugin/app.js",
+  "Icon": "resources/actions/toggle/on.svg",
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Software": {
+    "MinVersion": "3.0.11"
+  },
+  "Actions": [
+    {
+      "Name": "Toggle Monitor",
+      "UUID": "com.ulanzi.ulanzistudio.monitortoggle.toggle",
+      "Icon": "resources/actions/toggle/on.svg",
+      "Tooltip": "Toggle a Windows monitor or monitor group",
+      "SupportedInMultiActions": false,
+      "Controllers": [
+        "Keypad"
+      ],
+      "Devices": [
+        "D200H"
+      ],
+      "PropertyInspectorPath": "property-inspector/inspector.html",
+      "DisableAutomaticStates": true,
+      "States": [
+        {
+          "Name": "Active",
+          "Image": "resources/actions/toggle/on.svg",
+          "Title": "On"
+        },
+        {
+          "Name": "Inactive",
+          "Image": "resources/actions/toggle/off.svg",
+          "Title": "Off"
+        }
+      ]
+    }
+  ]
+}

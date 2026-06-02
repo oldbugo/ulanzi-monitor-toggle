@@ -1,0 +1,12 @@
+{
+  "name": "ulanzi-monitor-toggle-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "install:plugin": "npm install --prefix .\\com.ulanzi.monitortoggle.ulanziPlugin",
+    "validate:json": "node -e \"const fs=require('fs'); ['package.json','com.ulanzi.monitortoggle.ulanziPlugin/manifest.json','com.ulanzi.monitortoggle.ulanziPlugin/package.json'].forEach((file)=>JSON.parse(fs.readFileSync(file,'utf8'))); console.log('json ok')\"",
+    "backend:list": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\com.ulanzi.monitortoggle.ulanziPlugin\\scripts\\DisplayCtl.ps1 -Action list",
+    "node:list": "node .\\com.ulanzi.monitortoggle.ulanziPlugin\\plugin\\app.js --list-displays"
+  }
+}

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Monitor Toggle</title>
+    <link rel="stylesheet" href="../libs/css/uspi.css">
+    <script src="../libs/js/constants.js"></script>
+    <script src="../libs/js/eventEmitter.js"></script>
+    <script src="../libs/js/timers.js"></script>
+    <script src="../libs/js/utils.js"></script>
+    <script src="../libs/js/ulanziApi.js"></script>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: Inter, Segoe UI, Arial, sans-serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 16px;
+        background: Canvas;
+        color: CanvasText;
+      }
+
+      .uspi-wrapper {
+        display: grid;
+        gap: 14px;
+        max-width: 420px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      input,
+      select,
+      textarea {
+        box-sizing: border-box;
+        width: 100%;
+        border: 1px solid color-mix(in srgb, CanvasText 24%, transparent);
+        border-radius: 6px;
+        padding: 8px 10px;
+        background: Canvas;
+        color: CanvasText;
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 92px;
+        resize: vertical;
+        font-family: Consolas, "Courier New", monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <form id="settings" class="uspi-wrapper">
+      <label>
+        <span data-localize>Label</span>
+        <input name="label" autocomplete="off" placeholder="Desk right">
+      </label>
+
+      <label>
+        <span data-localize>Mode</span>
+        <select name="mode">
+          <option value="single">Single monitor</option>
+          <option value="group">Monitor group</option>
+        </select>
+      </label>
+
+      <label>
+        <span data-localize>Target keys</span>
+        <textarea name="targetKeys" spellcheck="false" placeholder="adapter-high:adapter-low:target-id"></textarea>
+      </label>
+
+      <label>
+        <span data-localize>Snapshot name</span>
+        <input name="snapshotName" autocomplete="off" placeholder="default">
+      </label>
+    </form>
+
+    <script>
+      const ACTION_UUID = "com.ulanzi.ulanzistudio.monitortoggle.toggle";
+      const form = document.getElementById("settings");
+      let settings = {};
+
+      function readForm() {
+        return Object.fromEntries(new FormData(form).entries());
+      }
+
+      function writeForm(next) {
+        for (const [key, value] of Object.entries(next || {})) {
+          if (form.elements[key]) {
+            form.elements[key].value = value ?? "";
+          }
+        }
+      }
+
+      function save() {
+        settings = readForm();
+        if (window.$UD && typeof window.$UD.sendParamFromPlugin === "function") {
+          window.$UD.sendParamFromPlugin(settings);
+        }
+      }
+
+      form.addEventListener("input", save);
+      form.addEventListener("change", save);
+
+      if (window.$UD && typeof window.$UD.connect === "function") {
+        window.$UD.connect(ACTION_UUID);
+        window.$UD.onAdd((message) => {
+          settings = message?.param || {};
+          writeForm(settings);
+        });
+      }
+    </script>
+  </body>
+</html>
