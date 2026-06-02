@@ -160,16 +160,42 @@ function runDisplayCtl(action, options = {}) {
   });
 }
 
+function activeKeySet(displays = []) {
+  return new Set(
+    displays
+      .map((display) => String(display.key || "").toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function isSettingsActive(settings, activeKeys) {
+  if (!settings.targetKeys.length) {
+    return false;
+  }
+
+  return settings.targetKeys.every((key) => activeKeys.has(String(key).toLowerCase()));
+}
+
+function syncButtonStatesFromDisplays(displays = []) {
+  const activeKeys = activeKeySet(displays);
+
+  for (const [context, settings] of settingsByContext) {
+    if (!settings.targetKeys.length) {
+      continue;
+    }
+
+    setButtonIcon(context, settings, isSettingsActive(settings, activeKeys));
+  }
+}
+
 async function syncButtonState(context, settings) {
   if (!settings.targetKeys.length) {
     return;
   }
 
-  const result = await runDisplayCtl("is-active", {
-    targetKeys: settings.targetKeys
-  });
-  const active = Boolean(result.active);
-  setButtonIcon(context, settings, active);
+  const result = await runDisplayCtl("list");
+  const displays = result.displays || [];
+  setButtonIcon(context, settings, isSettingsActive(settings, activeKeySet(displays)));
 }
 
 async function toggle(context, rawSettings) {
@@ -185,8 +211,7 @@ async function toggle(context, rawSettings) {
     targetKeys: settings.targetKeys,
     snapshotPath: snapshotPathFor(context)
   });
-  const active = Boolean(result.active);
-  setButtonIcon(context, settings, active);
+  syncButtonStatesFromDisplays(result.displays || []);
 }
 
 function resolvedPreset(settings) {
