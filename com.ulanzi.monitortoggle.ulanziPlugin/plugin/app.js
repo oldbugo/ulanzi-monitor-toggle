@@ -30,6 +30,9 @@ try {
     setStateIcon(_context, state, title) {
       console.log(JSON.stringify({ event: "setStateIcon", state, title }));
     }
+    setBaseDataIcon(_context, data, title) {
+      console.log(JSON.stringify({ event: "setBaseDataIcon", dataLength: data.length, title }));
+    }
     showAlert(context) {
       console.warn(JSON.stringify({ event: "showAlert", context }));
     }
@@ -44,6 +47,18 @@ const ACTION_UUID = `${PLUGIN_UUID}.toggle`;
 const $UD = new UlanziApi();
 const settingsByContext = new Map();
 
+const DEFAULT_COLORS = {
+  active: "#0f766e",
+  inactive: "#334155",
+  foreground: "#ecfeff"
+};
+const ICON_PRESETS = new Set(["auto", "monitor", "group", "power", "sleep", "blank"]);
+
+function normalizeColor(value, fallback) {
+  const color = String(value || "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : fallback;
+}
+
 function normalizeSettings(raw = {}) {
   const targetKeys = String(raw.targetKeys || "")
     .split(/[\n,]+/)
@@ -52,7 +67,11 @@ function normalizeSettings(raw = {}) {
 
   return {
     mode: raw.mode === "group" ? "group" : "single",
-    targetKeys
+    targetKeys,
+    iconPreset: ICON_PRESETS.has(raw.iconPreset) ? raw.iconPreset : "auto",
+    activeColor: normalizeColor(raw.activeColor, DEFAULT_COLORS.active),
+    inactiveColor: normalizeColor(raw.inactiveColor, DEFAULT_COLORS.inactive),
+    foregroundColor: normalizeColor(raw.foregroundColor, DEFAULT_COLORS.foreground)
   };
 }
 
@@ -150,7 +169,7 @@ async function syncButtonState(context, settings) {
     targetKeys: settings.targetKeys
   });
   const active = Boolean(result.active);
-  $UD.setStateIcon(context, active ? 0 : 1, active ? "On" : "Off");
+  setButtonIcon(context, settings, active);
 }
 
 async function toggle(context, rawSettings) {
@@ -167,7 +186,80 @@ async function toggle(context, rawSettings) {
     snapshotPath: snapshotPathFor(context)
   });
   const active = Boolean(result.active);
-  $UD.setStateIcon(context, active ? 0 : 1, active ? "On" : "Off");
+  setButtonIcon(context, settings, active);
+}
+
+function resolvedPreset(settings) {
+  if (settings.iconPreset && settings.iconPreset !== "auto") {
+    return settings.iconPreset;
+  }
+
+  return settings.mode === "group" ? "group" : "monitor";
+}
+
+function svgBase64(svg) {
+  return Buffer.from(svg, "utf8").toString("base64");
+}
+
+function setButtonIcon(context, settings, active) {
+  if (typeof $UD.setBaseDataIcon !== "function") {
+    $UD.setStateIcon(context, active ? 0 : 1, active ? "On" : "Off");
+    return;
+  }
+
+  const data = svgBase64(generateIconSvg(settings, active));
+  $UD.setBaseDataIcon(context, data, active ? "On" : "Off");
+}
+
+function generateIconSvg(settings, active) {
+  const background = active ? settings.activeColor : settings.inactiveColor;
+  const foreground = settings.foregroundColor;
+  const accent = active ? "#22c55e" : "#ef4444";
+  const preset = resolvedPreset(settings);
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="18" fill="${background}"/>
+  ${iconGlyph(preset, foreground, background)}
+  <circle cx="106" cy="36" r="13" fill="${accent}"/>
+  ${active
+    ? `<path d="M100 36l4 4 8-9" fill="none" stroke="${foreground}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`
+    : `<path d="M101 31l11 11M112 31l-11 11" fill="none" stroke="${foreground}" stroke-width="4" stroke-linecap="round"/>`}
+</svg>`;
+}
+
+function iconGlyph(preset, foreground, background) {
+  switch (preset) {
+    case "group":
+      return `
+  <rect x="22" y="38" width="60" height="44" rx="7" fill="${foreground}" opacity="0.72"/>
+  <rect x="34" y="50" width="68" height="48" rx="8" fill="${foreground}"/>
+  <rect x="44" y="60" width="48" height="28" rx="3" fill="${background}" opacity="0.82"/>
+  <rect x="62" y="102" width="14" height="10" fill="${foreground}"/>
+  <rect x="48" y="114" width="42" height="8" rx="4" fill="${foreground}"/>`;
+    case "power":
+      return `
+  <path d="M72 28v38" fill="none" stroke="${foreground}" stroke-width="12" stroke-linecap="round"/>
+  <path d="M48 48a38 38 0 1 0 48 0" fill="none" stroke="${foreground}" stroke-width="12" stroke-linecap="round"/>`;
+    case "sleep":
+      return `
+  <path d="M84 28c-22 6-38 26-38 49 0 21 13 39 31 47-4 1-9 2-14 2-29 0-52-23-52-52 0-28 22-51 50-52 9 0 16 2 23 6z" fill="${foreground}"/>
+  <path d="M90 58h28l-28 30h30" fill="none" stroke="${background}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.72"/>`;
+    case "blank":
+      return `
+  <rect x="26" y="34" width="88" height="58" rx="8" fill="${foreground}"/>
+  <rect x="38" y="46" width="64" height="34" rx="3" fill="${background}" opacity="0.92"/>
+  <path d="M40 80l62-34" stroke="${foreground}" stroke-width="6" stroke-linecap="round" opacity="0.65"/>
+  <rect x="64" y="98" width="16" height="12" fill="${foreground}"/>
+  <rect x="50" y="112" width="44" height="8" rx="4" fill="${foreground}"/>`;
+    case "monitor":
+    default:
+      return `
+  <rect x="28" y="34" width="88" height="58" rx="8" fill="${foreground}"/>
+  <rect x="38" y="44" width="68" height="38" rx="3" fill="${background}" opacity="0.78"/>
+  <rect x="64" y="96" width="16" height="12" fill="${foreground}"/>
+  <rect x="50" y="110" width="44" height="8" rx="4" fill="${foreground}"/>`;
+  }
 }
 
 async function sendDisplayList(context) {

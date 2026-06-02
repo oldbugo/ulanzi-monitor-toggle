@@ -53,6 +53,10 @@
         padding-top: 6px;
       }
 
+      .section-heading {
+        margin: 14px 8px 4px;
+      }
+
       .monitor-row {
         display: grid;
         grid-template-columns: minmax(0, 1fr) 34px;
@@ -112,6 +116,25 @@
       .muted-option {
         color: var(--uspi-unitcolor);
       }
+
+      .color-value {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+      }
+
+      input[type="color"].color-picker {
+        background: transparent;
+        border: 0;
+        height: var(--uspi-height);
+        min-width: 44px;
+        padding: 0;
+        width: 44px;
+      }
+
+      .color-text {
+        font-family: Consolas, "Courier New", monospace;
+      }
     </style>
   </head>
   <body>
@@ -136,6 +159,44 @@
           <input type="hidden" name="targetKeys">
         </div>
       </div>
+
+      <div class="uspi-heading section-heading" data-localize>Icon</div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Preset</div>
+        <select class="uspi-item-value" name="iconPreset">
+          <option value="auto">Auto</option>
+          <option value="monitor">Monitor</option>
+          <option value="group">Monitor group</option>
+          <option value="power">Power</option>
+          <option value="sleep">Sleep</option>
+          <option value="blank">Blank screen</option>
+        </select>
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Active</div>
+        <div class="uspi-item-value color-value">
+          <input class="color-picker" type="color" name="activeColor" value="#0f766e">
+          <input class="uspi-item-value color-text" name="activeColorText" value="#0f766e" maxlength="7" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Inactive</div>
+        <div class="uspi-item-value color-value">
+          <input class="color-picker" type="color" name="inactiveColor" value="#334155">
+          <input class="uspi-item-value color-text" name="inactiveColorText" value="#334155" maxlength="7" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Foreground</div>
+        <div class="uspi-item-value color-value">
+          <input class="color-picker" type="color" name="foregroundColor" value="#ecfeff">
+          <input class="uspi-item-value color-text" name="foregroundColorText" value="#ecfeff" maxlength="7" spellcheck="false">
+        </div>
+      </div>
     </form>
 
     <script>
@@ -148,6 +209,8 @@
       const addMonitorButton = document.getElementById("add-monitor");
       const refreshMonitorsButton = document.getElementById("refresh-monitors");
       const monitorStatus = document.getElementById("monitor-status");
+      const colorInputs = Array.from(form.querySelectorAll('input[type="color"]'));
+      const colorTextInputs = Array.from(form.querySelectorAll(".color-text"));
 
       let displays = [];
       let selectedKeys = [];
@@ -209,7 +272,8 @@
           settings &&
           (
             Object.prototype.hasOwnProperty.call(settings, "mode") ||
-            Object.prototype.hasOwnProperty.call(settings, "targetKeys")
+            Object.prototype.hasOwnProperty.call(settings, "targetKeys") ||
+            Object.prototype.hasOwnProperty.call(settings, "iconPreset")
           )
         );
       }
@@ -226,6 +290,28 @@
 
       function setStatus(message) {
         monitorStatus.textContent = message || "";
+      }
+
+      function normalizeColor(value, fallback) {
+        return /^#[0-9a-fA-F]{6}$/.test(String(value || "")) ? value.toLowerCase() : fallback;
+      }
+
+      function syncColorPair(input) {
+        const text = form.elements[`${input.name}Text`];
+        if (text) {
+          text.value = input.value;
+        }
+      }
+
+      function syncColorText(input) {
+        const colorName = input.name.replace(/Text$/, "");
+        const color = form.elements[colorName];
+        const fallback = color?.value || "#000000";
+        const normalized = normalizeColor(input.value, fallback);
+        input.value = normalized;
+        if (color) {
+          color.value = normalized;
+        }
       }
 
       function buildSelect(selectedKey, index) {
@@ -310,13 +396,22 @@
 
         hasAppliedSettings = true;
         Utils.setFormValue(settings || {}, FORM_SELECTOR);
+        for (const input of colorInputs) {
+          input.value = normalizeColor(settings?.[input.name], input.value);
+          syncColorPair(input);
+        }
         selectedKeys = splitTargetKeys(settings?.targetKeys);
         renderTargetSelectors();
       }
 
       function readSettings() {
         syncTargetKeys();
-        return Utils.getFormValue(FORM_SELECTOR);
+        const settings = Utils.getFormValue(FORM_SELECTOR);
+        for (const key of ["activeColor", "inactiveColor", "foregroundColor"]) {
+          settings[key] = normalizeColor(settings[key], form.elements[key]?.value || "#000000");
+          delete settings[`${key}Text`];
+        }
+        return settings;
       }
 
       function saveSettings() {
@@ -377,6 +472,19 @@
 
       form.addEventListener("input", debouncedSave);
       form.addEventListener("change", saveSettings);
+
+      for (const input of colorInputs) {
+        input.addEventListener("input", () => {
+          syncColorPair(input);
+        });
+      }
+
+      for (const input of colorTextInputs) {
+        input.addEventListener("change", () => {
+          syncColorText(input);
+          saveSettings();
+        });
+      }
 
       modeInput.addEventListener("change", () => {
         selectedKeys = normalizeSelections(selectedKeys);
