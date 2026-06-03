@@ -167,10 +167,7 @@ public static class DisplayConfigController
             throw new InvalidOperationException("Refusing to disable every active display.");
         }
 
-        if (!File.Exists(snapshotPath))
-        {
-            SaveSnapshotFromState(state, snapshotPath);
-        }
+        SaveSnapshotFromState(state, snapshotPath);
 
         Apply(remaining, PrepareModesForDisable(state, remaining));
 
