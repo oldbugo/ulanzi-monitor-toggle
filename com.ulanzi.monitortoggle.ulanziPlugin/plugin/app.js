@@ -27,6 +27,9 @@ try {
     onConnected(callback) {
       callback?.();
     }
+    getSettings(context) {
+      console.log(JSON.stringify({ event: "getSettings", context }));
+    }
     setStateIcon(_context, state, title) {
       console.log(JSON.stringify({ event: "setStateIcon", state, title }));
     }
@@ -46,6 +49,8 @@ const PLUGIN_UUID = "com.ulanzi.ulanzistudio.monitortoggle";
 const ACTION_UUID = `${PLUGIN_UUID}.toggle`;
 const $UD = new UlanziApi();
 const settingsByContext = new Map();
+const pendingRunsByContext = new Map();
+const settingsRequestsByContext = new Set();
 
 const DEFAULT_COLORS = {
   active: "#0f766e",
@@ -116,26 +121,90 @@ function settingsFrom(message = {}) {
   return message.param || message.settings || {};
 }
 
+function hasSettingsPayload(settings = {}) {
+  return Boolean(
+    settings &&
+      typeof settings === "object" &&
+      (
+        Object.prototype.hasOwnProperty.call(settings, "mode") ||
+        Object.prototype.hasOwnProperty.call(settings, "targetKeys") ||
+        Object.prototype.hasOwnProperty.call(settings, "iconPreset") ||
+        Object.prototype.hasOwnProperty.call(settings, "activeColor") ||
+        Object.prototype.hasOwnProperty.call(settings, "inactiveColor") ||
+        Object.prototype.hasOwnProperty.call(settings, "foregroundColor")
+      )
+  );
+}
+
 function cacheSettings(message = {}) {
   const context = contextFrom(message);
+  const rawSettings = settingsFrom(message);
+  const settings = normalizeSettings(rawSettings);
   if (!context) {
-    return normalizeSettings(settingsFrom(message));
+    return settings;
   }
 
-  const settings = normalizeSettings(settingsFrom(message));
-  settingsByContext.set(context, settings);
-  return settings;
+  if (hasSettingsPayload(rawSettings)) {
+    settingsByContext.set(context, settings);
+    return settings;
+  }
+
+  return settingsByContext.get(context) || settings;
 }
 
 function currentSettings(message = {}) {
   const context = contextFrom(message);
   const incoming = settingsFrom(message);
 
-  if (incoming && Object.keys(incoming).length > 0) {
+  if (hasSettingsPayload(incoming)) {
     return cacheSettings(message);
   }
 
   return settingsByContext.get(context) || normalizeSettings({});
+}
+
+function requestSavedSettings(context) {
+  if (!context || settingsRequestsByContext.has(context)) {
+    return;
+  }
+
+  settingsRequestsByContext.add(context);
+  $UD.getSettings?.(context);
+
+  setTimeout(() => {
+    if (!settingsRequestsByContext.has(context)) {
+      return;
+    }
+
+    settingsRequestsByContext.delete(context);
+    if (pendingRunsByContext.has(context)) {
+      pendingRunsByContext.delete(context);
+      $UD.logMessage?.("Monitor Toggle: saved settings were not received before timeout.");
+      $UD.showAlert?.(context);
+    }
+  }, 2500);
+}
+
+function handleSettingsMessage(message = {}) {
+  const context = contextFrom(message);
+  const rawSettings = settingsFrom(message);
+  if (!context || !hasSettingsPayload(rawSettings)) {
+    requestSavedSettings(context);
+    return null;
+  }
+
+  settingsRequestsByContext.delete(context);
+  const settings = cacheSettings(message);
+
+  if (pendingRunsByContext.has(context)) {
+    pendingRunsByContext.delete(context);
+    toggle(context, settings).catch((error) => {
+      $UD.logMessage?.(`Monitor Toggle failed: ${error.message}`);
+      $UD.showAlert?.(context);
+    });
+  }
+
+  return settings;
 }
 
 function runDisplayCtl(action, options = {}) {
@@ -188,12 +257,41 @@ function runDisplayCtl(action, options = {}) {
   });
 }
 
+function targetIdAlias(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+
+  if (text.toLowerCase().startsWith("target-id:")) {
+    return text.toLowerCase();
+  }
+
+  const parts = text.split(":");
+  if (parts.length === 3 && /^\d+$/.test(parts[2])) {
+    return `target-id:${parts[2]}`;
+  }
+
+  return "";
+}
+
 function activeKeySet(displays = []) {
-  return new Set(
-    displays
-      .map((display) => String(display.key || "").toLowerCase())
-      .filter(Boolean)
-  );
+  const keys = new Set();
+
+  for (const display of displays) {
+    for (const key of [display.key, display.legacyKey, ...(display.aliases || [])]) {
+      const normalized = String(key || "").toLowerCase();
+      if (normalized) {
+        keys.add(normalized);
+      }
+    }
+
+    if (display.targetId !== undefined && display.targetId !== null) {
+      keys.add(`target-id:${display.targetId}`);
+    }
+  }
+
+  return keys;
 }
 
 function isSettingsActive(settings, activeKeys) {
@@ -201,7 +299,11 @@ function isSettingsActive(settings, activeKeys) {
     return false;
   }
 
-  return settings.targetKeys.every((key) => activeKeys.has(String(key).toLowerCase()));
+  return settings.targetKeys.every((key) => {
+    const normalized = String(key).toLowerCase();
+    const alias = targetIdAlias(key);
+    return activeKeys.has(normalized) || Boolean(alias && activeKeys.has(alias));
+  });
 }
 
 function syncButtonStatesFromDisplays(displays = []) {
@@ -361,7 +463,11 @@ $UD.connect(PLUGIN_UUID);
 
 $UD.onAdd?.((message) => {
   const context = contextFrom(message);
-  const settings = cacheSettings(message);
+  const settings = handleSettingsMessage(message);
+  if (!settings) {
+    return;
+  }
+
   syncButtonState(context, settings).catch((error) => {
     $UD.logMessage?.(`Monitor Toggle state sync failed: ${error.message}`);
   });
@@ -369,7 +475,11 @@ $UD.onAdd?.((message) => {
 
 $UD.onParamFromPlugin?.((message) => {
   const context = contextFrom(message);
-  const settings = cacheSettings(message);
+  const settings = handleSettingsMessage(message);
+  if (!settings) {
+    return;
+  }
+
   syncButtonState(context, settings).catch((error) => {
     $UD.logMessage?.(`Monitor Toggle state sync failed: ${error.message}`);
   });
@@ -377,7 +487,11 @@ $UD.onParamFromPlugin?.((message) => {
 
 $UD.onParamFromApp?.((message) => {
   const context = contextFrom(message);
-  const settings = cacheSettings(message);
+  const settings = handleSettingsMessage(message);
+  if (!settings) {
+    return;
+  }
+
   syncButtonState(context, settings).catch((error) => {
     $UD.logMessage?.(`Monitor Toggle state sync failed: ${error.message}`);
   });
@@ -385,7 +499,11 @@ $UD.onParamFromApp?.((message) => {
 
 $UD.onDidReceiveSettings?.((message) => {
   const context = contextFrom(message);
-  const settings = cacheSettings(message);
+  const settings = handleSettingsMessage(message);
+  if (!settings) {
+    return;
+  }
+
   syncButtonState(context, settings).catch((error) => {
     $UD.logMessage?.(`Monitor Toggle state sync failed: ${error.message}`);
   });
@@ -402,7 +520,14 @@ $UD.onSendToPlugin?.((message) => {
 
 $UD.onRun?.((message) => {
   const context = contextFrom(message);
-  toggle(context, currentSettings(message)).catch((error) => {
+  const settings = currentSettings(message);
+  if (!settings.targetKeys.length && !hasSettingsPayload(settingsFrom(message)) && !settingsByContext.has(context)) {
+    pendingRunsByContext.set(context, true);
+    requestSavedSettings(context);
+    return;
+  }
+
+  toggle(context, settings).catch((error) => {
     $UD.logMessage?.(`Monitor Toggle failed: ${error.message}`);
     $UD.showAlert?.(context);
   });

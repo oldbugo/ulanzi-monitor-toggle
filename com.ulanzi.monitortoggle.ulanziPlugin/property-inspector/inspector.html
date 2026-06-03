@@ -229,19 +229,62 @@
         return [name, source, primary].filter(Boolean).join(" - ");
       }
 
+      function targetIdAlias(key) {
+        const text = String(key || "").trim();
+        if (!text) {
+          return "";
+        }
+
+        if (text.toLowerCase().startsWith("target-id:")) {
+          return text.toLowerCase();
+        }
+
+        const parts = text.split(":");
+        if (parts.length === 3 && /^\d+$/.test(parts[2])) {
+          return `target-id:${parts[2]}`;
+        }
+
+        return "";
+      }
+
+      function displayKeys(display) {
+        const keys = [display.key, display.legacyKey, ...(display.aliases || [])]
+          .map((key) => String(key || "").toLowerCase())
+          .filter(Boolean);
+
+        if (display.targetId !== undefined && display.targetId !== null) {
+          keys.push(`target-id:${display.targetId}`);
+        }
+
+        return keys;
+      }
+
+      function displayForKey(key) {
+        const normalized = String(key || "").toLowerCase();
+        const alias = targetIdAlias(key);
+        return displays.find((display) => {
+          const keys = displayKeys(display);
+          return keys.includes(normalized) || Boolean(alias && keys.includes(alias));
+        });
+      }
+
       function optionLabelForKey(key) {
-        const display = displays.find((item) => item.key === key);
+        const display = displayForKey(key);
         return display ? displayLabel(display) : key;
+      }
+
+      function canonicalKey(key) {
+        return displayForKey(key)?.key || key;
       }
 
       function normalizeSelections(keys) {
         if (modeInput.value === "single") {
-          return savedKeys(keys).slice(0, 1);
+          return savedKeys(keys).map(canonicalKey).slice(0, 1);
         }
 
         const seen = new Set();
         return keys
-          .map((key) => String(key || "").trim())
+          .map((key) => canonicalKey(String(key || "").trim()))
           .filter((key) => {
             if (!key) {
               return true;
@@ -329,6 +372,11 @@
           option.value = display.key;
           option.textContent = displayLabel(display);
           select.appendChild(option);
+        }
+
+        const selectedDisplay = displayForKey(selectedKey);
+        if (selectedDisplay) {
+          selectedKey = selectedDisplay.key;
         }
 
         if (selectedKey && !displays.some((display) => display.key === selectedKey)) {

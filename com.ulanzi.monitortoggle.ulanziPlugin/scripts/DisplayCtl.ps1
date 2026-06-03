@@ -43,6 +43,8 @@ public static class DisplayConfigController
     public sealed class DisplayInfo
     {
         public string key { get; set; }
+        public string legacyKey { get; set; }
+        public string[] aliases { get; set; }
         public string friendlyName { get; set; }
         public string devicePath { get; set; }
         public string sourceName { get; set; }
@@ -104,14 +106,14 @@ public static class DisplayConfigController
     {
         HashSet<string> targets = NormalizeTargetSet(targetKeys);
         DisplayInfo[] displays = ListDisplays();
-        bool active = targets.Count > 0 && targets.All(target => displays.Any(display => String.Equals(display.key, target, StringComparison.OrdinalIgnoreCase)));
+        bool active = targets.Count > 0 && targets.All(target => displays.Any(display => DisplayMatches(display, target)));
 
         return new OperationResult
         {
             status = active ? "active" : "inactive",
             active = active,
             activeDisplayCount = displays.Length,
-            matchedTargetCount = targets.Count(target => displays.Any(display => String.Equals(display.key, target, StringComparison.OrdinalIgnoreCase))),
+            matchedTargetCount = targets.Count(target => displays.Any(display => DisplayMatches(display, target))),
             displays = displays
         };
     }
@@ -142,7 +144,7 @@ public static class DisplayConfigController
 
         DisplayState state = QueryActive();
         DISPLAYCONFIG_PATH_INFO[] remaining = state.Paths
-            .Where(path => !targets.Contains(TargetKey(path.targetInfo.adapterId, path.targetInfo.id)))
+            .Where(path => !TargetMatches(path, targets))
             .ToArray();
 
         int matchedCount = state.Paths.Length - remaining.Length;
@@ -205,10 +207,10 @@ public static class DisplayConfigController
         DisplayState snapshot = ReadSnapshot(snapshotPath);
         DisplayState current = QueryActive();
         HashSet<string> snapshotKeys = new HashSet<string>(
-            snapshot.Paths.Select(path => TargetKey(path.targetInfo.adapterId, path.targetInfo.id)),
+            snapshot.Paths.Select(path => StableTargetKey(path)),
             StringComparer.OrdinalIgnoreCase);
         HashSet<string> currentKeys = new HashSet<string>(
-            current.Paths.Select(path => TargetKey(path.targetInfo.adapterId, path.targetInfo.id)),
+            current.Paths.Select(path => StableTargetKey(path)),
             StringComparer.OrdinalIgnoreCase);
 
         if (currentKeys.Any(key => !snapshotKeys.Contains(key)))
@@ -216,9 +218,14 @@ public static class DisplayConfigController
             throw new InvalidOperationException("Snapshot does not include all currently active displays.");
         }
 
-        HashSet<string> selectedKeys = new HashSet<string>(
-            targets.Where(target => snapshotKeys.Contains(target)),
-            StringComparer.OrdinalIgnoreCase);
+        HashSet<string> selectedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (DISPLAYCONFIG_PATH_INFO path in snapshot.Paths)
+        {
+            if (TargetMatches(path, targets))
+            {
+                selectedKeys.Add(StableTargetKey(path));
+            }
+        }
 
         if (selectedKeys.Count == 0)
         {
@@ -241,13 +248,13 @@ public static class DisplayConfigController
         }
 
         DISPLAYCONFIG_PATH_INFO[] enabledPaths = snapshot.Paths
-            .Where(path => finalKeys.Contains(TargetKey(path.targetInfo.adapterId, path.targetInfo.id)))
+            .Where(path => finalKeys.Contains(StableTargetKey(path)))
             .ToArray();
 
         Apply(enabledPaths, PrepareModesForDisable(snapshot, enabledPaths));
 
         DisplayInfo[] displays = ListDisplays();
-        bool active = targets.All(target => displays.Any(display => String.Equals(display.key, target, StringComparison.OrdinalIgnoreCase)));
+        bool active = targets.All(target => displays.Any(display => DisplayMatches(display, target)));
         HashSet<string> activeKeys = new HashSet<string>(
             displays.Select(display => display.key),
             StringComparer.OrdinalIgnoreCase);
@@ -338,10 +345,14 @@ public static class DisplayConfigController
             string friendlyName = String.IsNullOrWhiteSpace(targetName.monitorFriendlyDeviceName)
                 ? "Display " + path.targetInfo.id.ToString()
                 : targetName.monitorFriendlyDeviceName;
+            string legacyKey = TargetKey(path.targetInfo.adapterId, path.targetInfo.id);
+            string stableKey = StableTargetKey(path, targetName);
 
             yield return new DisplayInfo
             {
-                key = TargetKey(path.targetInfo.adapterId, path.targetInfo.id),
+                key = stableKey,
+                legacyKey = legacyKey,
+                aliases = TargetAliases(path, targetName).Where(alias => !String.Equals(alias, stableKey, StringComparison.OrdinalIgnoreCase)).ToArray(),
                 friendlyName = friendlyName,
                 devicePath = targetName.monitorDevicePath,
                 sourceName = sourceName.viewGdiDeviceName,
@@ -617,9 +628,103 @@ public static class DisplayConfigController
             StringComparer.OrdinalIgnoreCase);
     }
 
+    private static bool DisplayMatches(DisplayInfo display, string target)
+    {
+        if (display == null || String.IsNullOrWhiteSpace(target))
+        {
+            return false;
+        }
+
+        if (String.Equals(display.key, target, StringComparison.OrdinalIgnoreCase) ||
+            String.Equals(display.legacyKey, target, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (display.aliases != null && display.aliases.Any(alias => String.Equals(alias, target, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        uint targetId;
+        return TryParseTargetIdAlias(target, out targetId) && unchecked((uint)display.targetId) == targetId;
+    }
+
+    private static bool TargetMatches(DISPLAYCONFIG_PATH_INFO path, HashSet<string> targets)
+    {
+        if (targets == null || targets.Count == 0)
+        {
+            return false;
+        }
+
+        DISPLAYCONFIG_TARGET_DEVICE_NAME targetName = GetTargetName(path.targetInfo.adapterId, path.targetInfo.id);
+        if (TargetAliases(path, targetName).Any(alias => targets.Contains(alias)))
+        {
+            return true;
+        }
+
+        return targets.Any(target =>
+        {
+            uint targetId;
+            return TryParseTargetIdAlias(target, out targetId) && path.targetInfo.id == targetId;
+        });
+    }
+
+    private static string[] TargetAliases(DISPLAYCONFIG_PATH_INFO path, DISPLAYCONFIG_TARGET_DEVICE_NAME targetName)
+    {
+        return new[]
+        {
+            StableTargetKey(path, targetName),
+            TargetKey(path.targetInfo.adapterId, path.targetInfo.id),
+            TargetIdKey(path.targetInfo.id)
+        }
+        .Where(value => !String.IsNullOrWhiteSpace(value))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+    }
+
+    private static string StableTargetKey(DISPLAYCONFIG_PATH_INFO path)
+    {
+        DISPLAYCONFIG_TARGET_DEVICE_NAME targetName = GetTargetName(path.targetInfo.adapterId, path.targetInfo.id);
+        return StableTargetKey(path, targetName);
+    }
+
+    private static string StableTargetKey(DISPLAYCONFIG_PATH_INFO path, DISPLAYCONFIG_TARGET_DEVICE_NAME targetName)
+    {
+        if (!String.IsNullOrWhiteSpace(targetName.monitorDevicePath))
+        {
+            return "device:" + targetName.monitorDevicePath.ToLowerInvariant();
+        }
+
+        return TargetKey(path.targetInfo.adapterId, path.targetInfo.id);
+    }
+
     private static string TargetKey(LUID adapterId, uint targetId)
     {
         return String.Format("{0:X8}:{1:X8}:{2}", unchecked((uint)adapterId.HighPart), adapterId.LowPart, targetId);
+    }
+
+    private static string TargetIdKey(uint targetId)
+    {
+        return "target-id:" + targetId.ToString();
+    }
+
+    private static bool TryParseTargetIdAlias(string value, out uint targetId)
+    {
+        targetId = 0;
+        if (String.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        string text = value.Trim();
+        if (text.StartsWith("target-id:", StringComparison.OrdinalIgnoreCase))
+        {
+            return UInt32.TryParse(text.Substring("target-id:".Length), out targetId);
+        }
+
+        string[] parts = text.Split(':');
+        return parts.Length == 3 && UInt32.TryParse(parts[2], out targetId);
     }
 
     private static string SourceKey(LUID adapterId, uint sourceId)
