@@ -1,5 +1,22 @@
 # Verification Log
 
+## 2026-06-03
+
+Environment:
+
+- Branch: `codex/utility-suite-foundation`
+- Plugin package folder: `com.ulanzi.utilitysuite.ulanziPlugin`
+- Manifest UUID: `com.ulanzi.ulanzistudio.utilitysuite`
+
+Checks performed:
+
+| Check | Command | Result |
+| --- | --- | --- |
+| JSON parse | `npm run validate:json` | Passed |
+| App syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\app.js` | Passed |
+| Backend display list | `npm run backend:list` | Passed; returned 2 active displays |
+| Node wrapper display list | `npm run node:list` | Passed; Node invoked the suite router and Monitor Toggle backend |
+
 ## 2026-06-02
 
 Environment:
@@ -8,6 +25,8 @@ Environment:
 - OS target: Windows 11
 - Plugin package folder: `com.ulanzi.monitortoggle.ulanziPlugin`
 - Manifest UUID: `com.ulanzi.ulanzistudio.monitortoggle`
+
+This entry records the original Monitor Toggle prototype before the utility-suite refactor. Current package and manifest details are documented in `docs/ARCHITECTURE.md`.
 
 Checks performed:
 

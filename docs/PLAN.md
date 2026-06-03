@@ -1,8 +1,10 @@
-# Ulanzi Monitor Toggle Plugin Plan
+# Ulanzi Utility Suite Plan
+
+This project is now structured as a personal Ulanzi Deck utility suite. The original Monitor Toggle plan remains below as the first utility's implementation context. Current suite architecture is documented in `docs/ARCHITECTURE.md`.
 
 ## Goal
 
-Create a Ulanzi D200H plugin that lets a Windows 11 user toggle one monitor, or a configured group of monitors, on and off from the Windows desktop. "Off" means the display is disabled from the Windows display topology, not physically powered down through DDC/CI.
+Host multiple personal Ulanzi D200H utilities in one Windows-only JavaScript plugin. The first included utility lets a user toggle one monitor, or a configured group of monitors, on and off from the Windows desktop. "Off" means the display is disabled from the Windows display topology, not physically powered down through DDC/CI.
 
 The button should provide visible state feedback on the Ulanzi dock:
 
@@ -39,7 +41,7 @@ This keeps the package source-visible and avoids shipping a separate binary. The
 
 Completed in the initial scaffold:
 
-- Created Ulanzi package folder using the SDK naming convention: `com.ulanzi.monitortoggle.ulanziPlugin`.
+- Created Ulanzi package folder using the SDK naming convention: `com.ulanzi.utilitysuite.ulanziPlugin`.
 - Added a manifest with Windows-only D200H keypad action support.
 - Vendored Ulanzi SDK common HTML and Node helper libraries.
 - Added plugin-local `ws` dependency metadata and installed it locally for verification.
@@ -81,16 +83,21 @@ ulanzi-monitor-toggle/
     PLAN.md
     VERIFICATION.md
     THIRD_PARTY.md
-  com.ulanzi.monitortoggle.ulanziPlugin/
+  com.ulanzi.utilitysuite.ulanziPlugin/
     manifest.json
     package.json
     package-lock.json
     libs/
     plugin/
       app.js
+      src/
+        runtime/
+        suite/
+        utilities/
+          monitorToggle/
       plugin-common-node/
     property-inspector/
-      inspector.html
+      monitor-toggle.html
     scripts/
       WindowsDisplayControl.ps1
       WindowsDisplayWatcher.ps1

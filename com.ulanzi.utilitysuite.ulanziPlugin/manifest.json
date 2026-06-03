@@ -1,9 +1,9 @@
 {
   "Author": "Local prototype",
-  "Name": "Monitor Toggle",
-  "Description": "Toggle selected Windows displays from the active desktop topology.",
+  "Name": "Ulanzi Utility Suite",
+  "Description": "Personal Ulanzi Deck utility suite with tools for Windows workflows.",
   "Version": "0.1.0",
-  "UUID": "com.ulanzi.ulanzistudio.monitortoggle",
+  "UUID": "com.ulanzi.ulanzistudio.utilitysuite",
   "Type": "JavaScript",
   "CodePath": "plugin/app.js",
   "Icon": "resources/actions/toggle/on.svg",
@@ -18,8 +18,8 @@
   },
   "Actions": [
     {
-      "Name": "Toggle Monitor",
-      "UUID": "com.ulanzi.ulanzistudio.monitortoggle.toggle",
+      "Name": "Monitor Toggle",
+      "UUID": "com.ulanzi.ulanzistudio.utilitysuite.monitortoggle",
       "Icon": "resources/actions/toggle/on.svg",
       "Tooltip": "Toggle a Windows monitor or monitor group",
       "SupportedInMultiActions": false,
@@ -29,7 +29,7 @@
       "Devices": [
         "D200H"
       ],
-      "PropertyInspectorPath": "property-inspector/inspector.html",
+      "PropertyInspectorPath": "property-inspector/monitor-toggle.html",
       "DisableAutomaticStates": true,
       "States": [
         {
