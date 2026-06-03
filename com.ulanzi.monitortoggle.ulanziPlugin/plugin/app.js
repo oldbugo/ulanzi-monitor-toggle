@@ -354,8 +354,16 @@ function handleDisplayWatcherLine(line) {
     return;
   }
 
-  if (event.type === "display-settings-changed") {
-    scheduleDisplayRefresh("windows display change");
+  if (event.type === "watcher-registration-failed") {
+    const source = event.source ? ` (${event.source})` : "";
+    const detail = event.detail ? `: ${event.detail}` : "";
+    $UD.logMessage?.(`Monitor Toggle display watcher registration failed${source}${detail}`);
+    return;
+  }
+
+  if (event.type === "display-settings-changed" || event.type === "display-device-changed") {
+    const source = event.source ? ` via ${event.source}` : "";
+    scheduleDisplayRefresh(`windows display change${source}`);
   }
 }
 
