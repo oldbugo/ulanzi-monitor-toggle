@@ -75,7 +75,7 @@ This utility is focused on personal Pro-plan allowance windows, not API token bi
 - `stale`: the latest refresh failed, but a previous cached snapshot exists.
 - `unsupported`: no readable local source is available for the configured provider.
 
-V1 does not use browser scraping and does not store provider credentials. Codex live status can use the existing Codex ChatGPT auth file at `%USERPROFILE%\.codex\auth.json`. Claude live status requires Claude Code OAuth credentials at `%USERPROFILE%\.claude\.credentials.json` or `CLAUDE_CONFIG_DIR`; the Claude Windows desktop app profile is app-container encrypted and is manual-first until a supported bridge is added.
+V1 does not use browser scraping and does not store provider credentials. Codex live status can use the existing Codex ChatGPT auth file at `%USERPROFILE%\.codex\auth.json`. Claude live status requires `CLAUDE_CODE_OAUTH_TOKEN` or Claude Code OAuth credentials at `%USERPROFILE%\.claude\.credentials.json` / `CLAUDE_CONFIG_DIR`; the Claude Windows desktop app profile is app-container encrypted and is manual-first until a supported bridge is added.
 
 ## Architecture
 

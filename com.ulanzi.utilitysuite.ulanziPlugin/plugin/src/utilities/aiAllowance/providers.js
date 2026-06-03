@@ -181,6 +181,31 @@ function claudeCredentialCandidates() {
   return candidates;
 }
 
+function claudeOauthTokenSource() {
+  if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+    return {
+      token: process.env.CLAUDE_CODE_OAUTH_TOKEN,
+      source: "CLAUDE_CODE_OAUTH_TOKEN"
+    };
+  }
+
+  const file = claudeCredentialCandidates().find((candidate) => fs.existsSync(candidate));
+  if (!file) {
+    return null;
+  }
+
+  const credentials = readJsonFile(file);
+  const token = credentials?.claudeAiOauth?.accessToken || credentials?.accessToken;
+  if (!token) {
+    throw new Error(`${file} exists but does not contain a Claude OAuth access token.`);
+  }
+
+  return {
+    token,
+    source: file
+  };
+}
+
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
   const text = await response.text();
@@ -226,21 +251,15 @@ async function codexChatGptUsageSnapshot(settings, now = new Date()) {
 }
 
 async function claudeOauthUsageSnapshot(settings, now = new Date()) {
-  const file = claudeCredentialCandidates().find((candidate) => fs.existsSync(candidate));
-  if (!file) {
-    return null;
-  }
-
-  const credentials = readJsonFile(file);
-  const accessToken = credentials?.claudeAiOauth?.accessToken || credentials?.accessToken;
-  if (!accessToken) {
+  const tokenSource = claudeOauthTokenSource();
+  if (!tokenSource) {
     return null;
   }
 
   const data = await fetchJson(CLAUDE_OAUTH_USAGE_URL, {
     headers: {
       accept: "application/json",
-      authorization: `Bearer ${accessToken}`,
+      authorization: `Bearer ${tokenSource.token}`,
       "anthropic-beta": "oauth-2025-04-20"
     }
   });
@@ -318,7 +337,7 @@ export async function resolveAutoStatusSnapshot(settings, now = new Date()) {
   }
 
   const desktopContext = settings.provider === "claude"
-    ? " Claude Desktop's Windows app profile is app-container encrypted; use Claude Code OAuth credentials or a future browser/app bridge for live data."
+    ? " Claude Desktop's Windows app profile is app-container encrypted; run Claude Code /login to create .credentials.json, or set CLAUDE_CODE_OAUTH_TOKEN from `claude setup-token`, then restart Ulanzi Studio."
     : "";
   return unsupportedSnapshot(
     settings,

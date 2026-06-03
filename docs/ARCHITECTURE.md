@@ -42,7 +42,7 @@ The AI Allowance Monitor tracks personal subscription allowance windows, not API
 Auto status uses local authenticated surfaces only:
 
 - Codex reads `%USERPROFILE%\.codex\auth.json`, uses the existing ChatGPT access token to request `https://chatgpt.com/backend-api/wham/usage`, then normalizes `primary_window` as five-hour and `secondary_window` as weekly.
-- Claude reads Claude Code OAuth credentials from `%USERPROFILE%\.claude\.credentials.json` or `CLAUDE_CONFIG_DIR`, then requests `https://api.anthropic.com/api/oauth/usage` and normalizes the five-hour and seven-day utilization fields.
+- Claude reads `CLAUDE_CODE_OAUTH_TOKEN`, or Claude Code OAuth credentials from `%USERPROFILE%\.claude\.credentials.json` / `CLAUDE_CONFIG_DIR`, then requests `https://api.anthropic.com/api/oauth/usage` and normalizes the five-hour and seven-day utilization fields.
 - Claude Desktop's Windows app profile stores auth in an app-container encrypted cache. V1 does not decrypt or scrape that profile.
 
 The utility never stores provider credentials. It caches only normalized status snapshots under `%LOCALAPPDATA%\UlanziUtilitySuite\ai-allowance`.

@@ -45,6 +45,7 @@ Additional local app checks:
 | Claude Windows app package | Found `Claude_pzs8sxrjxfjjc!Claude` |
 | Claude desktop profile | Found Chromium profile/token cache, but Windows app-container encryption prevents direct non-invasive token reads |
 | Claude Code OAuth credentials | `%USERPROFILE%\.claude\.credentials.json` was not present, so live OAuth usage lookup could not run |
+| Claude Code OAuth token env var | `CLAUDE_CODE_OAUTH_TOKEN` was not set, so live OAuth usage lookup could not run |
 
 Latest local allowance checks:
 
@@ -52,8 +53,8 @@ Latest local allowance checks:
 | --- | --- | --- | --- |
 | Codex | Five hour | `codex_chatgpt_auth` | `live`; 37% used, 63% remaining, reset at `2026-06-03T13:15:20.000Z`; endpoint reported plan type `plus` |
 | Codex | Weekly | `codex_chatgpt_auth` | `live`; 39% used, 61% remaining, reset at `2026-06-08T11:13:51.000Z`; endpoint reported plan type `plus` |
-| Claude | Five hour | Local OAuth | `unsupported`; Claude Code is installed but no readable OAuth credential exists; use manual mode |
-| Claude | Weekly | Local OAuth | `unsupported`; Claude Code is installed but no readable OAuth credential exists; use manual mode |
+| Claude | Five hour | Local OAuth | `unsupported`; Claude Code is installed but no readable OAuth token or credential file exists; use manual mode |
+| Claude | Weekly | Local OAuth | `unsupported`; Claude Code is installed but no readable OAuth token or credential file exists; use manual mode |
 
 Outcome: V1 now supports live Codex allowance status through the local Codex ChatGPT auth path. Claude remains manual-first on this machine unless Claude Code OAuth credentials are configured or a future browser/app bridge is added.
 

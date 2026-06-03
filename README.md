@@ -120,8 +120,10 @@ The monitor refreshes when the key is pressed. It does not decrement usage or ru
 Auto status is best-effort because providers do not expose a stable public API for personal Pro-plan allowance. Current sources:
 
 - Codex: reads the existing local Codex ChatGPT auth file at `%USERPROFILE%\.codex\auth.json`, calls the ChatGPT allowance endpoint, and caches only the normalized allowance snapshot.
-- Claude: reads Claude Code OAuth credentials from `%USERPROFILE%\.claude\.credentials.json` or `CLAUDE_CONFIG_DIR` when available, then calls Anthropic's OAuth usage endpoint.
+- Claude: reads `CLAUDE_CODE_OAUTH_TOKEN`, or Claude Code OAuth credentials from `%USERPROFILE%\.claude\.credentials.json` / `CLAUDE_CONFIG_DIR`, then calls Anthropic's OAuth usage endpoint.
 - Claude Desktop for Windows: the app profile is app-container encrypted, so V1 does not read its token cache directly.
+
+To enable Claude live status, authenticate Claude Code separately from Claude Desktop. Either run Claude Code and complete `/login`, or run `claude setup-token`, copy the printed token into a user-level `CLAUDE_CODE_OAUTH_TOKEN`, and restart Ulanzi Studio so the plugin process inherits it.
 
 AI allowance cache files are stored under:
 
