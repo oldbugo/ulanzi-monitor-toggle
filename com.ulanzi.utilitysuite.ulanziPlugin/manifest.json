@@ -43,6 +43,43 @@
           "Title": "Off"
         }
       ]
+    },
+    {
+      "Name": "AI Allowance Monitor",
+      "UUID": "com.ulanzi.ulanzistudio.utilitysuite.aiallowance",
+      "Icon": "resources/actions/ai-allowance/unknown.svg",
+      "Tooltip": "Track Codex and Claude Pro allowance windows",
+      "SupportedInMultiActions": false,
+      "Controllers": [
+        "Keypad"
+      ],
+      "Devices": [
+        "D200H"
+      ],
+      "PropertyInspectorPath": "property-inspector/ai-allowance.html",
+      "DisableAutomaticStates": true,
+      "States": [
+        {
+          "Name": "OK",
+          "Image": "resources/actions/ai-allowance/ok.svg",
+          "Title": "OK"
+        },
+        {
+          "Name": "Warning",
+          "Image": "resources/actions/ai-allowance/warning.svg",
+          "Title": "Low"
+        },
+        {
+          "Name": "Critical",
+          "Image": "resources/actions/ai-allowance/critical.svg",
+          "Title": "Critical"
+        },
+        {
+          "Name": "Unknown",
+          "Image": "resources/actions/ai-allowance/unknown.svg",
+          "Title": "Unknown"
+        }
+      ]
     }
   ]
 }

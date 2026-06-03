@@ -1,10 +1,11 @@
 import { createRuntimePaths } from "./src/runtime/paths.js";
 import { createUtilitySuite } from "./src/suite/createUtilitySuite.js";
 import { PLUGIN_UUID } from "./src/suite/identifiers.js";
+import { createAiAllowanceUtility } from "./src/utilities/aiAllowance/index.js";
 import { createMonitorToggleUtility } from "./src/utilities/monitorToggle/index.js";
 
 let UlanziApi;
-const devCliMode = process.argv.includes("--list-displays");
+const devCliMode = process.argv.includes("--list-displays") || process.argv.includes("--ai-allowance-status");
 
 try {
   UlanziApi = (await import("./plugin-common-node/index.js")).default;
@@ -22,7 +23,8 @@ const suite = createUtilitySuite({
   api,
   pluginUuid: PLUGIN_UUID,
   utilities: [
-    createMonitorToggleUtility({ api, paths })
+    createMonitorToggleUtility({ api, paths }),
+    createAiAllowanceUtility({ api, paths })
   ]
 });
 

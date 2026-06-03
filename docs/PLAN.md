@@ -51,6 +51,12 @@ Completed in the initial scaffold:
 - Verified non-destructive display enumeration through both PowerShell and Node.
 - Verified snapshot creation.
 - Verified the safety guard refuses to disable every active display.
+- Added AI Allowance Monitor as the first new utility-suite action.
+- Added Codex and Claude allowance settings for five-hour and weekly windows.
+- Added Codex live allowance lookup through the local Codex ChatGPT auth file and ChatGPT usage endpoint.
+- Added Claude OAuth usage lookup when Claude Code credentials are available.
+- Added manual allowance fallback and reset-window tracking for unsupported live sources.
+- Added focused unit tests for allowance settings, reset behavior, status levels, stale cache rendering, and provider response normalization.
 
 Not yet completed:
 
@@ -59,6 +65,17 @@ Not yet completed:
 - D200H physical button test.
 - Discovery UI in the property inspector.
 - Marketplace packaging review.
+
+## AI Allowance Monitor Direction
+
+This utility is focused on personal Pro-plan allowance windows, not API token billing. The feature should remain explicit about source quality:
+
+- `live`: a local authenticated source returned a current allowance snapshot.
+- `manual`: the user-entered remaining percentage and reset timer are being used.
+- `stale`: the latest refresh failed, but a previous cached snapshot exists.
+- `unsupported`: no readable local source is available for the configured provider.
+
+V1 does not use browser scraping and does not store provider credentials. Codex live status can use the existing Codex ChatGPT auth file at `%USERPROFILE%\.codex\auth.json`. Claude live status requires Claude Code OAuth credentials at `%USERPROFILE%\.claude\.credentials.json` or `CLAUDE_CONFIG_DIR`; the Claude Windows desktop app profile is app-container encrypted and is manual-first until a supported bridge is added.
 
 ## Architecture
 
@@ -94,15 +111,18 @@ ulanzi-monitor-toggle/
         runtime/
         suite/
         utilities/
+          aiAllowance/
           monitorToggle/
       plugin-common-node/
     property-inspector/
+      ai-allowance.html
       monitor-toggle.html
     scripts/
       WindowsDisplayControl.ps1
       WindowsDisplayWatcher.ps1
     resources/
       actions/
+        ai-allowance/
         toggle/
           on.svg
           off.svg

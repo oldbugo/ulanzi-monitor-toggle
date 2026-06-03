@@ -25,11 +25,27 @@ plugin/
       createUtilitySuite.js
       identifiers.js
     utilities/
+      aiAllowance/
+        index.js
+        model.js
+        providers.js
       monitorToggle/
         index.js
 ```
 
-`app.js` only bootstraps the suite. Runtime helpers own shared concerns such as path resolution, PowerShell execution, dev CLI fallback, and message parsing. `createUtilitySuite` registers action UUIDs and dispatches Ulanzi events to the correct utility module.
+`app.js` only bootstraps the suite. Runtime helpers own shared concerns such as path resolution, PowerShell execution, dev CLI fallback, and message parsing. `createUtilitySuite` registers action UUIDs and dispatches Ulanzi events to the correct utility module. `aiAllowance/model.js` owns shared allowance settings and status semantics; `aiAllowance/providers.js` isolates provider probing so live-status support can be added without changing the Ulanzi action runtime.
+
+## AI Allowance Sources
+
+The AI Allowance Monitor tracks personal subscription allowance windows, not API billing tokens. Each key can monitor one provider/window pair: Codex or Claude, and five-hour or weekly.
+
+Auto status uses local authenticated surfaces only:
+
+- Codex reads `%USERPROFILE%\.codex\auth.json`, uses the existing ChatGPT access token to request `https://chatgpt.com/backend-api/wham/usage`, then normalizes `primary_window` as five-hour and `secondary_window` as weekly.
+- Claude reads Claude Code OAuth credentials from `%USERPROFILE%\.claude\.credentials.json` or `CLAUDE_CONFIG_DIR`, then requests `https://api.anthropic.com/api/oauth/usage` and normalizes the five-hour and seven-day utilization fields.
+- Claude Desktop's Windows app profile stores auth in an app-container encrypted cache. V1 does not decrypt or scrape that profile.
+
+The utility never stores provider credentials. It caches only normalized status snapshots under `%LOCALAPPDATA%\UlanziUtilitySuite\ai-allowance`.
 
 ## Utility Contract
 
@@ -51,3 +67,8 @@ A utility module returns an object with:
 6. Put utility-specific assets under `resources/actions/<utilityName>/`.
 
 Keep scripts and local state namespaced by utility so future tools do not share Monitor Toggle assumptions.
+
+## Current Utilities
+
+- `monitorToggle`: toggles Windows display topology through the PowerShell DisplayConfig backend.
+- `aiAllowance`: best-effort Codex and Claude Pro allowance monitor with live local-auth status where available, plus manual five-hour and weekly reset tracking when providers do not expose readable allowance status.

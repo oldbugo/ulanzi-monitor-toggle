@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>AI Allowance Monitor</title>
+    <link rel="stylesheet" href="../libs/css/uspi.css">
+    <script src="../libs/js/constants.js"></script>
+    <script src="../libs/js/eventEmitter.js"></script>
+    <script src="../libs/js/timers.js"></script>
+    <script src="../libs/js/utils.js"></script>
+    <script src="../libs/js/ulanziApi.js"></script>
+    <style>
+      :root {
+        --uspi-label-width: 92px;
+      }
+
+      html,
+      body {
+        overflow-x: hidden;
+      }
+
+      .uspi-wrapper {
+        padding-top: 2px;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+
+      .uspi-wrapper .uspi-item {
+        align-items: center;
+        margin: 10px 8px;
+        max-width: calc(100% - 16px);
+        width: calc(100% - 16px);
+      }
+
+      .uspi-wrapper .uspi-item-label {
+        flex: 0 0 var(--uspi-label-width);
+        width: var(--uspi-label-width);
+      }
+
+      .uspi-wrapper .uspi-item-value {
+        flex: 1 1 auto;
+        max-width: 100%;
+        min-width: 0;
+        width: auto;
+      }
+
+      .stacked-value {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .toolbar button {
+        flex: 0 1 auto;
+        min-width: 86px;
+        width: auto;
+      }
+
+      .status {
+        min-height: 34px;
+        color: var(--uspi-unitcolor);
+        font-size: 12px;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      }
+
+      .status strong {
+        color: var(--uspi-color);
+        display: block;
+        font-weight: 600;
+      }
+
+      .manual-only {
+        display: none;
+      }
+
+      .manual-mode .manual-only {
+        display: flex;
+      }
+
+      input[type="number"] {
+        min-width: 0;
+      }
+
+      textarea.uspi-item-value {
+        height: 64px;
+        min-height: 64px;
+        resize: vertical;
+      }
+    </style>
+  </head>
+  <body>
+    <form id="property-inspector" class="uspi-wrapper">
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Provider</div>
+        <select class="uspi-item-value" name="provider">
+          <option value="codex">Codex</option>
+          <option value="claude">Claude</option>
+        </select>
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Window</div>
+        <select class="uspi-item-value" name="window">
+          <option value="five_hour">Five hour</option>
+          <option value="weekly">Weekly</option>
+        </select>
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Source</div>
+        <select class="uspi-item-value" name="source">
+          <option value="auto_status">Auto status</option>
+          <option value="manual">Manual</option>
+        </select>
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Label</div>
+        <input class="uspi-item-value" name="label" maxlength="40" placeholder="Optional">
+      </div>
+
+      <div class="uspi-item manual-only">
+        <div class="uspi-item-label" data-localize>Remaining</div>
+        <input class="uspi-item-value" name="remainingPercent" type="number" min="0" max="100" step="1" placeholder="0-100">
+      </div>
+
+      <div class="uspi-item manual-only">
+        <div class="uspi-item-label" data-localize>Reset at</div>
+        <input class="uspi-item-value" name="resetAt" type="datetime-local">
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Warning</div>
+        <input class="uspi-item-value" name="warningPercent" type="number" min="0" max="100" step="1" value="25">
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Critical</div>
+        <input class="uspi-item-value" name="criticalPercent" type="number" min="0" max="100" step="1" value="10">
+      </div>
+
+      <div class="uspi-item manual-only">
+        <div class="uspi-item-label" data-localize>Notes</div>
+        <textarea class="uspi-item-value" name="notes" maxlength="160" placeholder="Optional"></textarea>
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Status</div>
+        <div class="uspi-item-value stacked-value">
+          <div class="toolbar">
+            <button id="refresh-status" type="button">Refresh</button>
+            <button id="reset-five" type="button">+5h</button>
+            <button id="reset-week" type="button">+7d</button>
+          </div>
+          <div id="allowance-status" class="status"></div>
+        </div>
+      </div>
+    </form>
+
+    <script>
+      const ACTION_UUID = "com.ulanzi.ulanzistudio.utilitysuite.aiallowance";
+      const FORM_SELECTOR = "#property-inspector";
+      const form = document.querySelector(FORM_SELECTOR);
+      const statusEl = document.getElementById("allowance-status");
+      const refreshButton = document.getElementById("refresh-status");
+      const resetFiveButton = document.getElementById("reset-five");
+      const resetWeekButton = document.getElementById("reset-week");
+      let hasHydrated = false;
+
+      function pad(value) {
+        return String(value).padStart(2, "0");
+      }
+
+      function toLocalInputValue(date) {
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      }
+
+      function normalizePercent(value, fallback) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) {
+          return fallback;
+        }
+
+        return String(Math.max(0, Math.min(100, Math.round(number))));
+      }
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function syncModeVisibility() {
+        form.classList.toggle("manual-mode", form.elements.source.value === "manual");
+      }
+
+      function normalizeSettings(settings) {
+        return {
+          provider: settings.provider === "claude" ? "claude" : "codex",
+          window: settings.window === "weekly" ? "weekly" : "five_hour",
+          source: settings.source === "manual" ? "manual" : "auto_status",
+          label: String(settings.label || "").trim(),
+          warningPercent: normalizePercent(settings.warningPercent, "25"),
+          criticalPercent: normalizePercent(settings.criticalPercent, "10"),
+          remainingPercent: settings.remainingPercent === "" ? "" : normalizePercent(settings.remainingPercent, ""),
+          resetAt: settings.resetAt || "",
+          notes: String(settings.notes || "").trim()
+        };
+      }
+
+      function applySettings(settings) {
+        const normalized = normalizeSettings(settings || {});
+        Utils.setFormValue(normalized, FORM_SELECTOR);
+        syncModeVisibility();
+      }
+
+      function readSettings() {
+        return normalizeSettings(Utils.getFormValue(FORM_SELECTOR));
+      }
+
+      function saveSettings() {
+        const settings = readSettings();
+        $UD.setSettings(settings);
+        $UD.sendParamFromPlugin(settings);
+      }
+
+      const debouncedSave = Utils.debounce(saveSettings, 150);
+
+      function setStatus(snapshot, error) {
+        if (error) {
+          statusEl.innerHTML = `<strong>Error</strong>${escapeHtml(error)}`;
+          return;
+        }
+
+        if (!snapshot) {
+          statusEl.textContent = "No status yet.";
+          return;
+        }
+
+        const remaining = snapshot.remainingPercent === null || snapshot.remainingPercent === undefined
+          ? "Unknown"
+          : `${snapshot.remainingPercent}%`;
+        const reset = snapshot.resetAt ? new Date(snapshot.resetAt).toLocaleString() : "No reset time";
+        const source = snapshot.source === "manual" ? "Manual" : "Auto";
+        statusEl.innerHTML = `<strong>${escapeHtml(remaining)} - ${escapeHtml(snapshot.status)}</strong>${escapeHtml(source)}; ${escapeHtml(reset)}<br>${escapeHtml(snapshot.message || "")}`;
+      }
+
+      function requestStatus() {
+        setStatus(null);
+        $UD.sendToPlugin({ type: "refreshAllowance", settings: readSettings() });
+      }
+
+      function setResetHours(hours) {
+        const date = new Date(Date.now() + hours * 60 * 60 * 1000);
+        form.elements.resetAt.value = toLocalInputValue(date);
+        form.elements.source.value = "manual";
+        if (!form.elements.remainingPercent.value) {
+          form.elements.remainingPercent.value = "100";
+        }
+        syncModeVisibility();
+        saveSettings();
+      }
+
+      function hydrate() {
+        if (hasHydrated) {
+          return;
+        }
+
+        hasHydrated = true;
+        syncModeVisibility();
+        $UD.getSettings();
+        requestStatus();
+      }
+
+      $UD.onConnected(hydrate);
+
+      $UD.onAdd((message) => {
+        applySettings(message?.param || {});
+        hydrate();
+      });
+
+      $UD.onDidReceiveSettings((message) => {
+        applySettings(message?.settings || message?.param || {});
+      });
+
+      $UD.onSendToPropertyInspector((message) => {
+        const payload = message?.payload || {};
+        if (payload.type !== "allowanceStatus") {
+          return;
+        }
+
+        if (payload.settings) {
+          applySettings(payload.settings);
+        }
+
+        setStatus(payload.snapshot, payload.error);
+      });
+
+      form.addEventListener("input", debouncedSave);
+      form.addEventListener("change", () => {
+        syncModeVisibility();
+        saveSettings();
+      });
+      refreshButton.addEventListener("click", requestStatus);
+      resetFiveButton.addEventListener("click", () => setResetHours(5));
+      resetWeekButton.addEventListener("click", () => setResetHours(24 * 7));
+
+      applySettings({});
+      $UD.connect(ACTION_UUID);
+    </script>
+  </body>
+</html>
