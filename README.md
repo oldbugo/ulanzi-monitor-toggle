@@ -33,9 +33,11 @@ The manifest is Windows-only and targets the D200H keypad action.
 ```text
 ulanzi-monitor-toggle/
   README.md
-  PLAN.md
-  VERIFICATION.md
   package.json
+  docs/
+    PLAN.md
+    VERIFICATION.md
+    THIRD_PARTY.md
   com.ulanzi.monitortoggle.ulanziPlugin/
     manifest.json
     package.json
@@ -45,13 +47,16 @@ ulanzi-monitor-toggle/
     property-inspector/
       inspector.html
     scripts/
-      DisplayCtl.ps1
+      WindowsDisplayControl.ps1
+      WindowsDisplayWatcher.ps1
     resources/
       actions/
         toggle/
           on.svg
           off.svg
 ```
+
+The `libs/` and `plugin/plugin-common-node/` folders are Ulanzi SDK support files copied into the installable plugin bundle. See `docs/THIRD_PARTY.md` for details.
 
 ## Setup
 
@@ -99,7 +104,7 @@ Help me set up the Ulanzi Monitor Toggle plugin on Windows 11.
 Repository:
 https://github.com/oldbugo/ulanzi-monitor-toggle
 
-Use the repository README as the source of truth. If useful, also read PLAN.md for implementation context and VERIFICATION.md for historical validation notes.
+Use the repository README as the source of truth. If useful, also read docs/PLAN.md for implementation context and docs/VERIFICATION.md for historical validation notes.
 
 Setup constraints:
 - Use PowerShell commands.

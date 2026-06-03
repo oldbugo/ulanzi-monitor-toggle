@@ -16,8 +16,8 @@ Checks performed:
 | JSON parse | `npm run validate:json` | Passed |
 | Backend display list | `npm run backend:list` | Passed; returned 3 active displays |
 | Node wrapper display list | `npm run node:list` | Passed; Node invoked backend and parsed JSON |
-| Snapshot create | `DisplayCtl.ps1 -Action snapshot` | Passed; snapshot written to `%TEMP%\ulanzi-monitor-toggle-test.bin` |
-| Disable-all safety guard | `DisplayCtl.ps1 -Action disable` with all active display keys | Passed; refused with `Refusing to disable every active display.` |
+| Snapshot create | `WindowsDisplayControl.ps1 -Action snapshot` | Passed; snapshot written to `%TEMP%\ulanzi-monitor-toggle-test.bin` |
+| Disable-all safety guard | `WindowsDisplayControl.ps1 -Action disable` with all active display keys | Passed; refused with `Refusing to disable every active display.` |
 
 Detected active displays during verification:
 

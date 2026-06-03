@@ -75,9 +75,12 @@ flowchart LR
 
 ```text
 ulanzi-monitor-toggle/
-  PLAN.md
   README.md
   package.json
+  docs/
+    PLAN.md
+    VERIFICATION.md
+    THIRD_PARTY.md
   com.ulanzi.monitortoggle.ulanziPlugin/
     manifest.json
     package.json
@@ -89,7 +92,8 @@ ulanzi-monitor-toggle/
     property-inspector/
       inspector.html
     scripts/
-      DisplayCtl.ps1
+      WindowsDisplayControl.ps1
+      WindowsDisplayWatcher.ps1
     resources/
       actions/
         toggle/
@@ -147,7 +151,7 @@ The PowerShell backend exposes JSON commands:
 
 ### Phase 1: Non-Destructive
 
-- Verify `DisplayCtl.ps1 -Action list` returns valid JSON.
+- Verify `WindowsDisplayControl.ps1 -Action list` returns valid JSON.
 - Verify monitor keys include adapter LUID, target ID, source name, friendly monitor name, and position.
 - Verify the Node wrapper can invoke the backend and parse JSON.
 - Verify Ulanzi manifest is valid JSON.
@@ -226,7 +230,7 @@ Verifiable outcome:
 
 Verifiable outcome:
 
-- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\DisplayCtl.ps1 -Action list` returns valid JSON.
+- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\WindowsDisplayControl.ps1 -Action list` returns valid JSON.
 
 ### 3. Backend: Snapshot / Restore
 

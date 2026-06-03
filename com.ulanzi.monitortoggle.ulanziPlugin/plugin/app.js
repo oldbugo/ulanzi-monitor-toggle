@@ -7,8 +7,8 @@ import { spawn } from "node:child_process";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const pluginRoot = path.resolve(__dirname, "..");
-const displayCtlPath = path.join(pluginRoot, "scripts", "DisplayCtl.ps1");
-const displayWatchPath = path.join(pluginRoot, "scripts", "DisplayWatch.ps1");
+const windowsDisplayControlPath = path.join(pluginRoot, "scripts", "WindowsDisplayControl.ps1");
+const windowsDisplayWatcherPath = path.join(pluginRoot, "scripts", "WindowsDisplayWatcher.ps1");
 const stateRoot = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "UlanziMonitorToggle");
 
 let UlanziApi;
@@ -212,7 +212,7 @@ function handleSettingsMessage(message = {}) {
   return settings;
 }
 
-function runDisplayCtl(action, options = {}) {
+function runWindowsDisplayControl(action, options = {}) {
   fs.mkdirSync(stateRoot, { recursive: true });
 
   const args = [
@@ -220,7 +220,7 @@ function runDisplayCtl(action, options = {}) {
     "-ExecutionPolicy",
     "Bypass",
     "-File",
-    displayCtlPath,
+    windowsDisplayControlPath,
     "-Action",
     action
   ];
@@ -249,14 +249,14 @@ function runDisplayCtl(action, options = {}) {
     child.on("error", reject);
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(new Error(stderr.trim() || `DisplayCtl exited with code ${code}`));
+        reject(new Error(stderr.trim() || `WindowsDisplayControl exited with code ${code}`));
         return;
       }
 
       try {
         resolve(JSON.parse(stdout));
       } catch (error) {
-        reject(new Error(`DisplayCtl returned invalid JSON: ${error.message}\n${stdout}`));
+        reject(new Error(`WindowsDisplayControl returned invalid JSON: ${error.message}\n${stdout}`));
       }
     });
   });
@@ -330,7 +330,7 @@ async function refreshAllButtonStates(reason = "display-change") {
     return;
   }
 
-  const result = await runDisplayCtl("list");
+  const result = await runWindowsDisplayControl("list");
   syncButtonStatesFromDisplays(result.displays || []);
   $UD.logMessage?.(`Monitor Toggle refreshed states after ${reason}.`);
 }
@@ -380,7 +380,7 @@ function startDisplayWatcher() {
     "-ExecutionPolicy",
     "Bypass",
     "-File",
-    displayWatchPath
+    windowsDisplayWatcherPath
   ];
 
   displayWatcher = spawn("powershell.exe", args, { windowsHide: true });
@@ -446,7 +446,7 @@ async function syncButtonState(context, settings) {
     return;
   }
 
-  const result = await runDisplayCtl("list");
+  const result = await runWindowsDisplayControl("list");
   const displays = result.displays || [];
   setButtonIcon(context, settings, isSettingsActive(settings, activeKeySet(displays)));
 }
@@ -456,7 +456,7 @@ async function enableFromSnapshots(context, settings) {
 
   for (const snapshotPath of snapshotCandidatesFor(context)) {
     try {
-      const result = await runDisplayCtl("enable", {
+      const result = await runWindowsDisplayControl("enable", {
         targetKeys: settings.targetKeys,
         snapshotPath
       });
@@ -481,10 +481,10 @@ async function toggle(context, rawSettings) {
     return;
   }
 
-  const current = await runDisplayCtl("list");
+  const current = await runWindowsDisplayControl("list");
   const currentlyActive = isSettingsActive(settings, activeKeySet(current.displays || []));
   const result = currentlyActive
-    ? await runDisplayCtl("disable", {
+    ? await runWindowsDisplayControl("disable", {
         targetKeys: settings.targetKeys,
         snapshotPath: snapshotPathFor(context)
       })
@@ -554,7 +554,7 @@ function iconGlyph(preset, foreground, background) {
 
 async function sendDisplayList(context) {
   try {
-    const result = await runDisplayCtl("list");
+    const result = await runWindowsDisplayControl("list");
     $UD.sendToPropertyInspector?.(
       {
         type: "displayList",
@@ -578,7 +578,7 @@ async function sendDisplayList(context) {
 }
 
 if (process.argv.includes("--list-displays")) {
-  const result = await runDisplayCtl("list");
+  const result = await runWindowsDisplayControl("list");
   console.log(JSON.stringify(result, null, 2));
   process.exit(0);
 }
