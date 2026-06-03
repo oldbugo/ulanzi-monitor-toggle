@@ -105,14 +105,16 @@ Setup constraints:
 - Use PowerShell commands.
 - Setup only; do not disable, enable, restore, or toggle any monitors.
 - Only run non-destructive validation/list commands unless I explicitly ask for monitor toggle testing later.
+- Do not use browser automation, desktop control, or GUI automation to verify setup.
+- Do not take over Ulanzi Deck / Ulanzi Studio. After the command-line checks pass, give me manual UI steps instead.
 
 Please help me:
 1. Clone or locate the repository.
 2. Install plugin dependencies.
 3. Run the non-destructive validation/list checks from the README.
 4. Copy com.ulanzi.monitortoggle.ulanziPlugin into the local Ulanzi plugin folder.
-5. Restart Ulanzi Deck.
-6. Add Monitor Toggle: Toggle Monitor to a D200H key and select a monitor from the property inspector.
+5. Tell me to restart Ulanzi Deck.
+6. Stop automated verification there and provide the manual steps for adding Monitor Toggle: Toggle Monitor to a D200H key and selecting a monitor from the property inspector.
 
 If you cannot access the repo online, ask me for the local folder path and continue from the cloned repository.
 ```
