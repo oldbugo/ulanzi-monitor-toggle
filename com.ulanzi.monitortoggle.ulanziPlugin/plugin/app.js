@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const pluginRoot = path.resolve(__dirname, "..");
 const displayCtlPath = path.join(pluginRoot, "scripts", "DisplayCtl.ps1");
+const displayWatchPath = path.join(pluginRoot, "scripts", "DisplayWatch.ps1");
 const stateRoot = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "UlanziMonitorToggle");
 
 let UlanziApi;
@@ -51,6 +52,10 @@ const $UD = new UlanziApi();
 const settingsByContext = new Map();
 const pendingRunsByContext = new Map();
 const settingsRequestsByContext = new Set();
+let displayWatcher = null;
+let displayWatcherRestartTimer = null;
+let displayRefreshTimer = null;
+let shuttingDown = false;
 
 const DEFAULT_COLORS = {
   active: "#0f766e",
@@ -311,6 +316,111 @@ function isSettingsActive(settings, activeKeys) {
   });
 }
 
+function scheduleDisplayRefresh(reason = "display-change") {
+  clearTimeout(displayRefreshTimer);
+  displayRefreshTimer = setTimeout(() => {
+    refreshAllButtonStates(reason).catch((error) => {
+      $UD.logMessage?.(`Monitor Toggle display refresh failed: ${error.message}`);
+    });
+  }, 1200);
+}
+
+async function refreshAllButtonStates(reason = "display-change") {
+  if (!settingsByContext.size) {
+    return;
+  }
+
+  const result = await runDisplayCtl("list");
+  syncButtonStatesFromDisplays(result.displays || []);
+  $UD.logMessage?.(`Monitor Toggle refreshed states after ${reason}.`);
+}
+
+function handleDisplayWatcherLine(line) {
+  const text = String(line || "").trim();
+  if (!text) {
+    return;
+  }
+
+  let event;
+  try {
+    event = JSON.parse(text);
+  } catch {
+    $UD.logMessage?.(`Monitor Toggle display watcher output: ${text}`);
+    return;
+  }
+
+  if (event.type === "watcher-started") {
+    $UD.logMessage?.("Monitor Toggle display watcher started.");
+    return;
+  }
+
+  if (event.type === "display-settings-changed") {
+    scheduleDisplayRefresh("windows display change");
+  }
+}
+
+function startDisplayWatcher() {
+  if (devCliMode || displayWatcher) {
+    return;
+  }
+
+  clearTimeout(displayWatcherRestartTimer);
+
+  const args = [
+    "-NoProfile",
+    "-STA",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    displayWatchPath
+  ];
+
+  displayWatcher = spawn("powershell.exe", args, { windowsHide: true });
+  let stdout = "";
+  let stderr = "";
+
+  displayWatcher.stdout.on("data", (chunk) => {
+    stdout += chunk;
+    const lines = stdout.split(/\r?\n/);
+    stdout = lines.pop() || "";
+    for (const line of lines) {
+      handleDisplayWatcherLine(line);
+    }
+  });
+
+  displayWatcher.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+
+  displayWatcher.on("error", (error) => {
+    $UD.logMessage?.(`Monitor Toggle display watcher failed: ${error.message}`);
+  });
+
+  displayWatcher.on("close", (code) => {
+    displayWatcher = null;
+    const message = stderr.trim();
+    if (message) {
+      $UD.logMessage?.(`Monitor Toggle display watcher stderr: ${message}`);
+    }
+
+    if (!shuttingDown) {
+      $UD.logMessage?.(`Monitor Toggle display watcher exited with code ${code}; restarting.`);
+      displayWatcherRestartTimer = setTimeout(startDisplayWatcher, 10000);
+    }
+  });
+}
+
+function stopDisplayWatcher() {
+  shuttingDown = true;
+  clearTimeout(displayWatcherRestartTimer);
+  clearTimeout(displayRefreshTimer);
+
+  if (displayWatcher) {
+    displayWatcher.kill();
+    displayWatcher = null;
+  }
+}
+
 function syncButtonStatesFromDisplays(displays = []) {
   const activeKeys = activeKeySet(displays);
 
@@ -373,6 +483,7 @@ async function toggle(context, rawSettings) {
     : await enableFromSnapshots(context, settings);
 
   syncButtonStatesFromDisplays(result.displays || []);
+  scheduleDisplayRefresh("monitor toggle");
 }
 
 function resolvedPreset(settings) {
@@ -465,6 +576,11 @@ if (process.argv.includes("--list-displays")) {
 }
 
 $UD.connect(PLUGIN_UUID);
+startDisplayWatcher();
+
+$UD.onConnected?.(() => {
+  startDisplayWatcher();
+});
 
 $UD.onAdd?.((message) => {
   const context = contextFrom(message);
@@ -536,4 +652,14 @@ $UD.onRun?.((message) => {
     $UD.logMessage?.(`Monitor Toggle failed: ${error.message}`);
     $UD.showAlert?.(context);
   });
+});
+
+process.on("exit", stopDisplayWatcher);
+process.on("SIGINT", () => {
+  stopDisplayWatcher();
+  process.exit(0);
+});
+process.on("SIGTERM", () => {
+  stopDisplayWatcher();
+  process.exit(0);
 });
