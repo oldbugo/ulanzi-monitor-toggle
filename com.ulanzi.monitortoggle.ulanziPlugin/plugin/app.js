@@ -272,6 +272,11 @@ function targetIdAlias(value) {
     return `target-id:${parts[2]}`;
   }
 
+  const uid = text.match(/uid(\d+)/i);
+  if (uid) {
+    return `target-id:${uid[1]}`;
+  }
+
   return "";
 }
 

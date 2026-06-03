@@ -206,14 +206,10 @@ public static class DisplayConfigController
 
         DisplayState snapshot = ReadSnapshot(snapshotPath);
         DisplayState current = QueryActive();
-        HashSet<string> snapshotKeys = new HashSet<string>(
-            snapshot.Paths.Select(path => StableTargetKey(path)),
-            StringComparer.OrdinalIgnoreCase);
-        HashSet<string> currentKeys = new HashSet<string>(
-            current.Paths.Select(path => StableTargetKey(path)),
-            StringComparer.OrdinalIgnoreCase);
+        HashSet<string> snapshotAliases = PathAliasSet(snapshot.Paths);
+        HashSet<string> currentAliases = PathAliasSet(current.Paths);
 
-        if (currentKeys.Any(key => !snapshotKeys.Contains(key)))
+        if (current.Paths.Any(path => !PathMatchesAliasSet(path, snapshotAliases)))
         {
             throw new InvalidOperationException("Snapshot does not include all currently active displays.");
         }
@@ -226,6 +222,10 @@ public static class DisplayConfigController
                 selectedKeys.Add(StableTargetKey(path));
             }
         }
+
+        DISPLAYCONFIG_PATH_INFO[] enabledPaths = snapshot.Paths
+            .Where(path => TargetMatches(path, targets) || PathMatchesAliasSet(path, currentAliases))
+            .ToArray();
 
         if (selectedKeys.Count == 0)
         {
@@ -241,24 +241,12 @@ public static class DisplayConfigController
             };
         }
 
-        HashSet<string> finalKeys = new HashSet<string>(currentKeys, StringComparer.OrdinalIgnoreCase);
-        foreach (string key in selectedKeys)
-        {
-            finalKeys.Add(key);
-        }
-
-        DISPLAYCONFIG_PATH_INFO[] enabledPaths = snapshot.Paths
-            .Where(path => finalKeys.Contains(StableTargetKey(path)))
-            .ToArray();
-
         Apply(enabledPaths, PrepareModesForDisable(snapshot, enabledPaths));
 
         DisplayInfo[] displays = ListDisplays();
         bool active = targets.All(target => displays.Any(display => DisplayMatches(display, target)));
-        HashSet<string> activeKeys = new HashSet<string>(
-            displays.Select(display => display.key),
-            StringComparer.OrdinalIgnoreCase);
-        if (snapshotKeys.All(key => activeKeys.Contains(key)))
+        HashSet<string> activeAliases = DisplayAliasSet(displays);
+        if (snapshot.Paths.All(path => PathMatchesAliasSet(path, activeAliases)))
         {
             TryDeleteSnapshot(snapshotPath);
         }
@@ -670,6 +658,63 @@ public static class DisplayConfigController
         });
     }
 
+    private static bool PathMatchesAliasSet(DISPLAYCONFIG_PATH_INFO path, HashSet<string> aliases)
+    {
+        if (aliases == null || aliases.Count == 0)
+        {
+            return false;
+        }
+
+        DISPLAYCONFIG_TARGET_DEVICE_NAME targetName = GetTargetName(path.targetInfo.adapterId, path.targetInfo.id);
+        return TargetAliases(path, targetName).Any(alias => aliases.Contains(alias));
+    }
+
+    private static HashSet<string> PathAliasSet(DISPLAYCONFIG_PATH_INFO[] paths)
+    {
+        HashSet<string> aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (DISPLAYCONFIG_PATH_INFO path in paths ?? new DISPLAYCONFIG_PATH_INFO[0])
+        {
+            DISPLAYCONFIG_TARGET_DEVICE_NAME targetName = GetTargetName(path.targetInfo.adapterId, path.targetInfo.id);
+            foreach (string alias in TargetAliases(path, targetName))
+            {
+                aliases.Add(alias);
+            }
+        }
+
+        return aliases;
+    }
+
+    private static HashSet<string> DisplayAliasSet(DisplayInfo[] displays)
+    {
+        HashSet<string> aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (DisplayInfo display in displays ?? new DisplayInfo[0])
+        {
+            AddAlias(aliases, display.key);
+            AddAlias(aliases, display.legacyKey);
+            AddAlias(aliases, TargetIdKey(unchecked((uint)display.targetId)));
+
+            if (display.aliases == null)
+            {
+                continue;
+            }
+
+            foreach (string alias in display.aliases)
+            {
+                AddAlias(aliases, alias);
+            }
+        }
+
+        return aliases;
+    }
+
+    private static void AddAlias(HashSet<string> aliases, string alias)
+    {
+        if (!String.IsNullOrWhiteSpace(alias))
+        {
+            aliases.Add(alias);
+        }
+    }
+
     private static string[] TargetAliases(DISPLAYCONFIG_PATH_INFO path, DISPLAYCONFIG_TARGET_DEVICE_NAME targetName)
     {
         return new[]
@@ -724,7 +769,25 @@ public static class DisplayConfigController
         }
 
         string[] parts = text.Split(':');
-        return parts.Length == 3 && UInt32.TryParse(parts[2], out targetId);
+        if (parts.Length == 3 && UInt32.TryParse(parts[2], out targetId))
+        {
+            return true;
+        }
+
+        int uidIndex = text.IndexOf("uid", StringComparison.OrdinalIgnoreCase);
+        if (uidIndex < 0)
+        {
+            return false;
+        }
+
+        int digitStart = uidIndex + 3;
+        int digitEnd = digitStart;
+        while (digitEnd < text.Length && Char.IsDigit(text[digitEnd]))
+        {
+            digitEnd++;
+        }
+
+        return digitEnd > digitStart && UInt32.TryParse(text.Substring(digitStart, digitEnd - digitStart), out targetId);
     }
 
     private static string SourceKey(LUID adapterId, uint sourceId)
