@@ -18,11 +18,13 @@ export function createUtilitySuite({ api, pluginUuid, utilities }) {
     return null;
   }
 
-  function dispatch(methodName, message = {}) {
+  function dispatch(methodName, message = {}, options = {}) {
     const utility = utilityFor(message);
     if (!utility || typeof utility[methodName] !== "function") {
-      const actionUuid = actionUuidFrom(message) || "unknown action";
-      api.logMessage?.(`Utility Suite: no handler for ${methodName} on ${actionUuid}.`);
+      if (!options.quietMissing) {
+        const actionUuid = actionUuidFrom(message) || "unknown action";
+        api.logMessage?.(`Utility Suite: no handler for ${methodName} on ${actionUuid}.`);
+      }
       return;
     }
 
@@ -56,6 +58,7 @@ export function createUtilitySuite({ api, pluginUuid, utilities }) {
     api.onParamFromApp?.((message) => dispatch("onParamFromApp", message));
     api.onDidReceiveSettings?.((message) => dispatch("onDidReceiveSettings", message));
     api.onSendToPlugin?.((message) => dispatch("onSendToPlugin", message));
+    api.onKeyDown?.((message) => dispatch("onKeyDown", message, { quietMissing: true }));
     api.onRun?.((message) => dispatch("onRun", message));
 
     api.connect(pluginUuid);

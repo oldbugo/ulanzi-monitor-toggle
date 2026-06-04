@@ -119,6 +119,12 @@ The utility also checks the legacy `%LOCALAPPDATA%\UlanziMonitorToggle` snapshot
 
 The restart action launches a detached PowerShell helper, waits briefly, stops only Ulanzi Studio processes under the detected install folder, then starts `UlanziDeck.exe` again.
 
+Restart attempts are logged at:
+
+```text
+%LOCALAPPDATA%\UlanziUtilitySuite\ulanzi-restart\restart.log
+```
+
 ## Configure AI Allowance Monitor
 
 1. Open Ulanzi Deck.

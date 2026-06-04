@@ -6,6 +6,9 @@ export class DevUlanziApi {
     callback?.();
     return this;
   }
+  onKeyDown() {
+    return this;
+  }
   onParamFromPlugin() {
     return this;
   }

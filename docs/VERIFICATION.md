@@ -52,6 +52,7 @@ Restart Ulanzi Studio action verified:
 | App syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\app.js` | Passed |
 | Restart utility syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\utilities\ulanziRestart\index.js` | Passed |
 | Restart dry run | `npm run restart-ulanzi:dry-run` | Passed; resolved `C:\Program Files (x86)\Ulanzi Studio\UlanziDeck.exe` and reported Ulanzi-owned processes without stopping them |
+| Restart helper actual run | `RestartUlanziStudio.ps1 -DelaySeconds 0 -LogPath %LOCALAPPDATA%\UlanziUtilitySuite\ulanzi-restart\restart.log` | Passed; stopped Ulanzi-owned processes and restarted `UlanziDeck.exe`; helper completion was written to `restart.log` |
 
 ## 2026-06-03
 

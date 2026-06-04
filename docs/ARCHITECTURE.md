@@ -80,4 +80,4 @@ Keep scripts and local state namespaced by utility so future tools do not share 
 
 - `monitorToggle`: toggles Windows display topology through the PowerShell DisplayConfig backend.
 - `aiAllowance`: best-effort Codex and Claude Pro allowance monitor with live local-auth status where available, plus manual five-hour and weekly reset tracking when providers do not expose readable allowance status.
-- `ulanziRestart`: launches a detached PowerShell helper that resolves the Ulanzi Studio install path, stops only Ulanzi-owned processes under that install root, and starts `UlanziDeck.exe` again.
+- `ulanziRestart`: launches a detached PowerShell helper that resolves the Ulanzi Studio install path, stops only Ulanzi-owned processes under that install root, and starts `UlanziDeck.exe` again. The action listens to both `keydown` and `run` with a short duplicate guard, and writes restart diagnostics to `%LOCALAPPDATA%\UlanziUtilitySuite\ulanzi-restart\restart.log`.

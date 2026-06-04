@@ -1,9 +1,28 @@
 param(
   [int]$DelaySeconds = 1,
+  [string]$LogPath = "",
   [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
+
+function Write-RestartLog {
+  param([string]$Message)
+
+  if (-not $LogPath) {
+    return
+  }
+
+  try {
+    $directory = Split-Path -Parent $LogPath
+    if ($directory) {
+      New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    }
+
+    Add-Content -LiteralPath $LogPath -Value "$((Get-Date).ToString('o')) $Message"
+  } catch {
+  }
+}
 
 function Resolve-UlanziInstall {
   $running = Get-CimInstance Win32_Process -Filter "Name = 'UlanziDeck.exe'" -ErrorAction SilentlyContinue |
@@ -54,6 +73,8 @@ function Get-UlanziProcesses($installRoot) {
 $install = Resolve-UlanziInstall
 $processes = @(Get-UlanziProcesses $install.Root)
 
+Write-RestartLog "helper started; executable=$($install.Executable); processCount=$($processes.Count); dryRun=$($DryRun.IsPresent)"
+
 if ($DryRun) {
   [pscustomobject]@{
     executable = $install.Executable
@@ -74,11 +95,15 @@ Start-Sleep -Seconds ([Math]::Max(0, $DelaySeconds))
 
 foreach ($process in $processes) {
   try {
+    Write-RestartLog "stopping $($process.Name) pid=$($process.ProcessId)"
     Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
   } catch {
+    Write-RestartLog "failed to stop pid=$($process.ProcessId): $($_.Exception.Message)"
   }
 }
 
 Start-Sleep -Seconds 1
 
+Write-RestartLog "starting $($install.Executable)"
 Start-Process -FilePath $install.Executable -WorkingDirectory $install.Root -WindowStyle Normal | Out-Null
+Write-RestartLog "restart helper finished"

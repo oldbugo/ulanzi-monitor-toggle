@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 
 import { contextFrom } from "../../runtime/messages.js";
@@ -31,6 +32,21 @@ function restartingSvg() {
 
 export function createUlanziRestartUtility({ api, paths }) {
   const scriptPath = path.join(paths.scriptsDir, "RestartUlanziStudio.ps1");
+  const stateRoot = path.join(paths.stateRoot, "ulanzi-restart");
+  const logPath = path.join(stateRoot, "restart.log");
+  let lastTriggerAt = 0;
+
+  function appendLog(message) {
+    try {
+      fs.mkdirSync(stateRoot, { recursive: true });
+      fs.appendFileSync(logPath, `${new Date().toISOString()} ${message}\n`);
+    } catch {
+    }
+  }
+
+  function psQuote(value) {
+    return `'${String(value).replace(/'/g, "''")}'`;
+  }
 
   function setIcon(context, restarting = false) {
     if (typeof api.setBaseDataIcon === "function") {
@@ -42,20 +58,59 @@ export function createUlanziRestartUtility({ api, paths }) {
   }
 
   function launchRestartHelper() {
+    const helperArgs = powershellFileArgs(scriptPath, [
+      "-DelaySeconds",
+      "1",
+      "-LogPath",
+      logPath
+    ]);
+    const command = `Start-Process -FilePath 'powershell.exe' -ArgumentList @(${helperArgs.map(psQuote).join(", ")}) -WindowStyle Hidden`;
     const child = spawn(
       "powershell.exe",
-      powershellFileArgs(scriptPath, ["-DelaySeconds", "1"]),
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
       {
         detached: true,
         stdio: "ignore",
         windowsHide: true
       }
     );
+    child.on("error", (error) => {
+      appendLog(`helper launch failed: ${error.message}`);
+      api.logMessage?.(`Ulanzi Restart helper launch failed: ${error.message}`);
+    });
     child.unref();
+    appendLog(`helper launch requested with script ${scriptPath}`);
   }
 
   async function dryRun() {
     return runJsonPowerShell(scriptPath, ["-DryRun"]);
+  }
+
+  function triggerRestart(message, eventName) {
+    const now = Date.now();
+    if (now - lastTriggerAt < 5000) {
+      appendLog(`ignored duplicate ${eventName} event`);
+      return;
+    }
+
+    lastTriggerAt = now;
+    const context = contextFrom(message);
+    appendLog(`received ${eventName} event for ${context || "unknown context"}`);
+
+    try {
+      setIcon(context, true);
+    } catch (error) {
+      appendLog(`icon update failed: ${error.message}`);
+      api.logMessage?.(`Ulanzi Restart icon update failed: ${error.message}`);
+    }
+
+    try {
+      launchRestartHelper();
+    } catch (error) {
+      appendLog(`helper launch threw: ${error.message}`);
+      api.logMessage?.(`Ulanzi Restart helper launch failed: ${error.message}`);
+      api.showAlert?.(context);
+    }
   }
 
   return {
@@ -67,10 +122,11 @@ export function createUlanziRestartUtility({ api, paths }) {
     onDidReceiveSettings(message) {
       setIcon(contextFrom(message));
     },
+    onKeyDown(message) {
+      triggerRestart(message, "keydown");
+    },
     onRun(message) {
-      const context = contextFrom(message);
-      setIcon(context, true);
-      launchRestartHelper();
+      triggerRestart(message, "run");
     },
     async handleCli(argv = process.argv) {
       if (!argv.includes("--restart-ulanzi-dry-run")) {
