@@ -91,20 +91,32 @@ function percent(value) {
   return Math.max(0, Math.min(100, Math.round(number)));
 }
 
-function liveSnapshot(settings, fields, now = new Date()) {
+function remainingPercentFromUsedPercent(usedPercent) {
+  return Math.max(0, 100 - usedPercent);
+}
+
+function liveUsageSnapshot(settings, fields, now = new Date()) {
+  const usedPercent = percent(fields.usedPercent);
+  if (usedPercent === null) {
+    return null;
+  }
+
+  const remainingPercent = remainingPercentFromUsedPercent(usedPercent);
   const snapshot = {
     provider: settings.provider,
     window: settings.window,
     source: "auto_status",
     status: "live",
-    remainingPercent: fields.remainingPercent,
-    usedPercent: fields.usedPercent,
+    remainingPercent,
+    usedPercent,
     resetAt: fields.resetAt,
     fetchedAt: now.toISOString(),
     cliVersion: fields.cliVersion || null,
     planType: fields.planType || null,
     sourceDetail: fields.sourceDetail,
-    message: fields.message
+    message: typeof fields.messageFromPercents === "function"
+      ? fields.messageFromPercents({ remainingPercent, usedPercent })
+      : fields.message
   };
 
   return {
@@ -118,12 +130,6 @@ export function normalizeCodexUsageSnapshot(settings, data, now = new Date(), cl
   const selectedWindow = settings.window === "weekly"
     ? rateLimit.secondary_window
     : rateLimit.primary_window;
-  const usedPercent = percent(selectedWindow?.used_percent);
-  if (usedPercent === null) {
-    return null;
-  }
-
-  const remainingPercent = Math.max(0, 100 - usedPercent);
   const resetAt = resetAtFromWindow(selectedWindow, now);
   const planType = typeof data?.plan_type === "string" ? data.plan_type : null;
   const allowed = rateLimit.allowed !== false;
@@ -133,14 +139,13 @@ export function normalizeCodexUsageSnapshot(settings, data, now = new Date(), cl
     ? ` Extra credits: ${credits.unlimited ? "unlimited" : credits.balance ?? "available"}.`
     : "";
 
-  return liveSnapshot(settings, {
-    usedPercent,
-    remainingPercent,
+  return liveUsageSnapshot(settings, {
+    usedPercent: selectedWindow?.used_percent,
     resetAt,
     cliVersion,
     planType,
     sourceDetail: "codex_chatgpt_auth",
-    message: `Codex usage from ChatGPT auth${planType ? ` (${planType})` : ""}: ${usedPercent}% used.${allowed ? "" : " Usage is not currently allowed."}${limitReached ? " Limit reached." : ""}${creditsText}`
+    messageFromPercents: ({ remainingPercent, usedPercent }) => `Codex allowance from ChatGPT auth${planType ? ` (${planType})` : ""}: ${remainingPercent}% remaining; ${usedPercent}% used.${allowed ? "" : " Usage is not currently allowed."}${limitReached ? " Limit reached." : ""}${creditsText}`
   }, now);
 }
 
@@ -148,23 +153,16 @@ export function normalizeClaudeOauthUsageSnapshot(settings, data, now = new Date
   const selectedWindow = settings.window === "weekly"
     ? data?.seven_day
     : data?.five_hour;
-  const usedPercent = percent(selectedWindow?.utilization);
-  if (usedPercent === null) {
-    return null;
-  }
-
-  const remainingPercent = Math.max(0, 100 - usedPercent);
   const resetAt = resetAtFromWindow(selectedWindow, now);
   const planType = typeof data?.plan === "string" ? data.plan : null;
 
-  return liveSnapshot(settings, {
-    usedPercent,
-    remainingPercent,
+  return liveUsageSnapshot(settings, {
+    usedPercent: selectedWindow?.utilization,
     resetAt,
     cliVersion,
     planType,
     sourceDetail: "claude_oauth",
-    message: `Claude usage from local OAuth${planType ? ` (${planType})` : ""}: ${usedPercent}% used.`
+    messageFromPercents: ({ remainingPercent, usedPercent }) => `Claude allowance from local OAuth${planType ? ` (${planType})` : ""}: ${remainingPercent}% remaining; ${usedPercent}% used.`
   }, now);
 }
 

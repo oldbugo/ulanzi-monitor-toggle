@@ -140,6 +140,7 @@ test("normalizes Codex ChatGPT usage response for selected window", () => {
   assert.equal(snapshot.remainingPercent, 63);
   assert.equal(snapshot.level, "ok");
   assert.equal(snapshot.resetAt, "2026-06-08T11:13:50.000Z");
+  assert.match(snapshot.message, /63% remaining; 37% used/);
 });
 
 test("normalizes Claude OAuth usage response for selected window", () => {
@@ -164,4 +165,24 @@ test("normalizes Claude OAuth usage response for selected window", () => {
   assert.equal(snapshot.remainingPercent, 18);
   assert.equal(snapshot.level, "warning");
   assert.equal(snapshot.resetAt, "2026-06-03T12:00:00.000Z");
+  assert.match(snapshot.message, /18% remaining; 82% used/);
+});
+
+test("Claude display percentage renders remaining allowance, not utilization", () => {
+  const settings = normalizeAiAllowanceSettings({
+    provider: "claude",
+    window: "five_hour"
+  });
+  const snapshot = normalizeClaudeOauthUsageSnapshot(settings, {
+    five_hour: {
+      utilization: 70,
+      resets_at: "2026-06-03T12:00:00+00:00"
+    }
+  }, new Date("2026-06-03T08:44:27.847Z"));
+  const svg = generateAllowanceIconSvg(snapshot, settings, new Date("2026-06-03T08:44:27.847Z"));
+
+  assert.equal(snapshot.usedPercent, 70);
+  assert.equal(snapshot.remainingPercent, 30);
+  assert.match(svg, />30%<\/text>/);
+  assert.doesNotMatch(svg, />70%<\/text>/);
 });

@@ -117,6 +117,8 @@ The utility also checks the legacy `%LOCALAPPDATA%\UlanziMonitorToggle` snapshot
 
 The monitor refreshes when the key is pressed. It does not decrement usage or run model requests.
 
+Displayed percentages always mean allowance left. `100%` means the full window is available; `30%` means `70%` has been used.
+
 Auto status is best-effort because providers do not expose a stable public API for personal Pro-plan allowance. Current sources:
 
 - Codex: reads the existing local Codex ChatGPT auth file at `%USERPROFILE%\.codex\auth.json`, calls the ChatGPT allowance endpoint, and caches only the normalized allowance snapshot.

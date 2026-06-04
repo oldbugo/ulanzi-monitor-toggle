@@ -47,6 +47,8 @@ Auto status uses local authenticated surfaces only:
 
 The utility never stores provider credentials. It caches only normalized status snapshots under `%LOCALAPPDATA%\UlanziUtilitySuite\ai-allowance`.
 
+`remainingPercent` is the canonical displayed percentage. Provider adapters may receive usage or utilization percentages from upstream services, but they must convert those values before rendering or caching. `100%` means the full allowance window remains; `30%` means `70%` has been used. `usedPercent` can be kept as metadata for diagnostics, but it must not be the large button percentage.
+
 ## Utility Contract
 
 A utility module returns an object with:
