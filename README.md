@@ -122,11 +122,11 @@ Displayed percentages always mean allowance left. `100%` means the full window i
 
 AI Allowance Monitor uses five visual bands for the remaining allowance:
 
-- `full`: 100-76
-- `healthy`: 75-51
-- `caution`: 50-26
-- `warning`: 25-11
-- `critical`: 10-0
+- `full`: 100-80
+- `healthy`: 79-65
+- `caution`: 64-40
+- `warning`: 39-20
+- `critical`: 19-0
 
 The settings panel exposes the five background thresholds as `Full >=`, `Healthy >=`, `Caution >=`, `Warning >=`, and `Critical <=`. These only affect the background band and transition target. The separate `Warning` and `Critical` fields still control logical alert levels.
 

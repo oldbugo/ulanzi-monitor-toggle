@@ -18,6 +18,14 @@ const WINDOW_DURATIONS_MS = {
   weekly: 7 * 24 * 60 * 60 * 1000
 };
 
+const LEGACY_DEFAULT_VISUAL_THRESHOLDS = {
+  visualFullPercent: 76,
+  visualHealthyPercent: 51,
+  visualCautionPercent: 26,
+  visualWarningPercent: 11,
+  visualCriticalPercent: 10
+};
+
 const DEFAULT_SETTINGS = {
   provider: "codex",
   window: "five_hour",
@@ -25,11 +33,11 @@ const DEFAULT_SETTINGS = {
   label: "",
   warningPercent: 25,
   criticalPercent: 10,
-  visualFullPercent: 76,
-  visualHealthyPercent: 51,
-  visualCautionPercent: 26,
-  visualWarningPercent: 11,
-  visualCriticalPercent: 10,
+  visualFullPercent: 80,
+  visualHealthyPercent: 65,
+  visualCautionPercent: 40,
+  visualWarningPercent: 20,
+  visualCriticalPercent: 19,
   animation: "transition",
   remainingPercent: "",
   resetAt: "",
@@ -47,6 +55,13 @@ function clampPercent(value, fallback = null) {
 
 function normalizeText(value, maxLength = 80) {
   return String(value || "").trim().slice(0, maxLength);
+}
+
+function hasLegacyDefaultVisualThresholds(raw = {}) {
+  return Object.entries(LEGACY_DEFAULT_VISUAL_THRESHOLDS).every(([key, value]) =>
+    Object.prototype.hasOwnProperty.call(raw, key) &&
+      clampPercent(raw[key], null) === value
+  );
 }
 
 export function normalizeResetAt(value) {
@@ -69,22 +84,23 @@ export function normalizeAiAllowanceSettings(raw = {}) {
     criticalPercent,
     clampPercent(raw.warningPercent, DEFAULT_SETTINGS.warningPercent)
   );
-  const visualWarningPercent = clampPercent(raw.visualWarningPercent, DEFAULT_SETTINGS.visualWarningPercent);
+  const visualSource = hasLegacyDefaultVisualThresholds(raw) ? {} : raw;
+  const visualWarningPercent = clampPercent(visualSource.visualWarningPercent, DEFAULT_SETTINGS.visualWarningPercent);
   const visualCriticalPercent = Math.min(
-    clampPercent(raw.visualCriticalPercent, DEFAULT_SETTINGS.visualCriticalPercent),
+    clampPercent(visualSource.visualCriticalPercent, DEFAULT_SETTINGS.visualCriticalPercent),
     Math.max(0, visualWarningPercent - 1)
   );
   const visualCautionPercent = Math.max(
     visualWarningPercent,
-    clampPercent(raw.visualCautionPercent, DEFAULT_SETTINGS.visualCautionPercent)
+    clampPercent(visualSource.visualCautionPercent, DEFAULT_SETTINGS.visualCautionPercent)
   );
   const visualHealthyPercent = Math.max(
     visualCautionPercent,
-    clampPercent(raw.visualHealthyPercent, DEFAULT_SETTINGS.visualHealthyPercent)
+    clampPercent(visualSource.visualHealthyPercent, DEFAULT_SETTINGS.visualHealthyPercent)
   );
   const visualFullPercent = Math.max(
     visualHealthyPercent,
-    clampPercent(raw.visualFullPercent, DEFAULT_SETTINGS.visualFullPercent)
+    clampPercent(visualSource.visualFullPercent, DEFAULT_SETTINGS.visualFullPercent)
   );
   const remainingPercent = raw.remainingPercent === "" || raw.remainingPercent === undefined || raw.remainingPercent === null
     ? null

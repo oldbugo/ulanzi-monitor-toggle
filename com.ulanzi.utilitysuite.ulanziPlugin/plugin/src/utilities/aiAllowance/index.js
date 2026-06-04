@@ -32,7 +32,7 @@ const SCHEDULED_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const TRANSITION_ICON_SETTLE_MS = 1800;
 const AI_ALLOWANCE_RESOURCE_PATH = "resources/actions/ai-allowance";
 const VISUAL_BANDS = ["full", "healthy", "caution", "warning", "critical", "unknown"];
-const STATIC_BACKGROUND_EXTENSIONS = [".svg", ".png", ".jpg", ".jpeg", ".webp"];
+const STATIC_BACKGROUND_EXTENSIONS = [".png", ".webp", ".jpg", ".jpeg", ".svg"];
 const STATIC_BACKGROUND_MIME_TYPES = {
   ".png": "image/png",
   ".jpg": "image/jpeg",

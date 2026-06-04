@@ -51,6 +51,22 @@ test("normalizes allowance settings", () => {
   assert.equal(settings.resetAt, "2026-06-03T00:00:00.000Z");
 });
 
+test("migrates legacy visual threshold defaults", () => {
+  const settings = normalizeAiAllowanceSettings({
+    visualFullPercent: 76,
+    visualHealthyPercent: 51,
+    visualCautionPercent: 26,
+    visualWarningPercent: 11,
+    visualCriticalPercent: 10
+  });
+
+  assert.equal(settings.visualFullPercent, 80);
+  assert.equal(settings.visualHealthyPercent, 65);
+  assert.equal(settings.visualCautionPercent, 40);
+  assert.equal(settings.visualWarningPercent, 20);
+  assert.equal(settings.visualCriticalPercent, 19);
+});
+
 test("rolls expired five-hour reset windows forward", () => {
   const resetAt = rollResetAt(
     "2026-06-03T00:00:00.000Z",
@@ -90,14 +106,14 @@ test("visual bands map remaining allowance boundaries", () => {
   const settings = normalizeAiAllowanceSettings({});
   const cases = [
     [100, "full"],
-    [76, "full"],
-    [75, "healthy"],
-    [51, "healthy"],
-    [50, "caution"],
-    [26, "caution"],
-    [25, "warning"],
-    [11, "warning"],
-    [10, "critical"],
+    [80, "full"],
+    [79, "healthy"],
+    [65, "healthy"],
+    [64, "caution"],
+    [40, "caution"],
+    [39, "warning"],
+    [20, "warning"],
+    [19, "critical"],
     [0, "critical"],
     [null, "unknown"]
   ];
