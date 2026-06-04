@@ -127,6 +127,14 @@
         <input class="uspi-item-value" name="label" maxlength="40" placeholder="Optional">
       </div>
 
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Animation</div>
+        <select class="uspi-item-value" name="animation">
+          <option value="transition">Transition</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
+
       <div class="uspi-item manual-only">
         <div class="uspi-item-label" data-localize>Remaining</div>
         <input class="uspi-item-value" name="remainingPercent" type="number" min="0" max="100" step="1" placeholder="0-100">
@@ -213,6 +221,7 @@
           window: settings.window === "weekly" ? "weekly" : "five_hour",
           source: settings.source === "manual" ? "manual" : "auto_status",
           label: String(settings.label || "").trim(),
+          animation: settings.animation === "off" ? "off" : "transition",
           warningPercent: normalizePercent(settings.warningPercent, "25"),
           criticalPercent: normalizePercent(settings.criticalPercent, "10"),
           remainingPercent: settings.remainingPercent === "" ? "" : normalizePercent(settings.remainingPercent, ""),
@@ -228,6 +237,7 @@
               Object.prototype.hasOwnProperty.call(settings, "provider") ||
               Object.prototype.hasOwnProperty.call(settings, "window") ||
               Object.prototype.hasOwnProperty.call(settings, "source") ||
+              Object.prototype.hasOwnProperty.call(settings, "animation") ||
               Object.prototype.hasOwnProperty.call(settings, "remainingPercent") ||
               Object.prototype.hasOwnProperty.call(settings, "resetAt")
             )

@@ -27,6 +27,12 @@ export class DevUlanziApi {
   setBaseDataIcon(_context, data, title) {
     console.log(JSON.stringify({ event: "setBaseDataIcon", dataLength: data.length, title }));
   }
+  setGifDataIcon(_context, gifdata, title) {
+    console.log(JSON.stringify({ event: "setGifDataIcon", dataLength: gifdata.length, title }));
+  }
+  setGifPathIcon(_context, gifpath, title) {
+    console.log(JSON.stringify({ event: "setGifPathIcon", gifpath, title }));
+  }
   showAlert(context) {
     console.warn(JSON.stringify({ event: "showAlert", context }));
   }

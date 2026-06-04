@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
+  allowanceBackgroundAssetPath,
+  allowanceTransitionAssetPath,
   generateAllowanceIconSvg,
   manualSnapshotFromSettings,
   mergeClaudeOauthRefreshCredentials,
@@ -9,8 +14,10 @@ import {
   normalizeCodexUsageSnapshot,
   normalizeAiAllowanceSettings,
   rollResetAt,
+  shouldUseTransitionAnimation,
   snapshotLevel,
-  staleSnapshotFromCache
+  staleSnapshotFromCache,
+  visualBandFromSnapshot
 } from "../com.ulanzi.utilitysuite.ulanziPlugin/plugin/src/utilities/aiAllowance/index.js";
 
 test("normalizes allowance settings", () => {
@@ -68,6 +75,26 @@ test("snapshot level respects warning and critical thresholds", () => {
   assert.equal(snapshotLevel({ remainingPercent: null }, settings), "unknown");
 });
 
+test("visual bands map remaining allowance boundaries", () => {
+  const cases = [
+    [100, "full"],
+    [76, "full"],
+    [75, "healthy"],
+    [51, "healthy"],
+    [50, "caution"],
+    [26, "caution"],
+    [25, "warning"],
+    [11, "warning"],
+    [10, "critical"],
+    [0, "critical"],
+    [null, "unknown"]
+  ];
+
+  for (const [remainingPercent, expectedBand] of cases) {
+    assert.equal(visualBandFromSnapshot({ remainingPercent }), expectedBand);
+  }
+});
+
 test("stale cache snapshot preserves cached allowance state", () => {
   const settings = normalizeAiAllowanceSettings({
     source: "auto_status",
@@ -103,6 +130,74 @@ test("unknown status rendering uses an explicit unknown marker", () => {
 
   assert.match(svg, />\?<\/text>/);
   assert.match(svg, />UNKNOWN<\/text>/);
+});
+
+test("missing static background asset falls back to generated band color", () => {
+  const resourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ai-allowance-background-"));
+  try {
+    const settings = normalizeAiAllowanceSettings({ provider: "codex" });
+    const svg = generateAllowanceIconSvg({
+      provider: "codex",
+      window: "five_hour",
+      source: "auto_status",
+      status: "live",
+      level: "ok",
+      remainingPercent: 90,
+      resetAt: null
+    }, settings, new Date("2026-06-03T10:00:00.000Z"), { resourceRoot });
+
+    assert.match(svg, /fill="#0f766e"/);
+    assert.match(svg, />90%<\/text>/);
+  } finally {
+    fs.rmSync(resourceRoot, { recursive: true, force: true });
+  }
+});
+
+test("provider static background asset is used when present", () => {
+  const resourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ai-allowance-background-"));
+  try {
+    const backgroundDir = path.join(resourceRoot, "backgrounds", "claude");
+    fs.mkdirSync(backgroundDir, { recursive: true });
+    fs.writeFileSync(path.join(backgroundDir, "warning.svg"), '<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144"><rect width="144" height="144" fill="#123456"/></svg>');
+    const settings = normalizeAiAllowanceSettings({ provider: "claude" });
+    const svg = generateAllowanceIconSvg({
+      provider: "claude",
+      window: "five_hour",
+      source: "auto_status",
+      status: "live",
+      level: "warning",
+      remainingPercent: 20,
+      resetAt: null
+    }, settings, new Date("2026-06-03T10:00:00.000Z"), { resourceRoot });
+
+    assert.match(svg, /data-background-provider="claude"/);
+    assert.match(svg, /fill="#123456"/);
+  } finally {
+    fs.rmSync(resourceRoot, { recursive: true, force: true });
+  }
+});
+
+test("transition animation only triggers on known band changes with GIF support", () => {
+  const settings = normalizeAiAllowanceSettings({ animation: "transition" });
+  const api = { setGifPathIcon() {} };
+
+  assert.equal(shouldUseTransitionAnimation("healthy", "caution", { remainingPercent: 50 }, settings, true, api), true);
+  assert.equal(shouldUseTransitionAnimation("caution", "caution", { remainingPercent: 40 }, settings, true, api), false);
+  assert.equal(shouldUseTransitionAnimation("healthy", "warning", { remainingPercent: 20 }, settings, false, api), false);
+  assert.equal(shouldUseTransitionAnimation("healthy", "warning", { remainingPercent: null }, settings, true, api), false);
+  assert.equal(shouldUseTransitionAnimation("healthy", "warning", { remainingPercent: 20 }, normalizeAiAllowanceSettings({ animation: "off" }), true, api), false);
+  assert.equal(shouldUseTransitionAnimation("healthy", "warning", { remainingPercent: 20 }, settings, true, {}), false);
+});
+
+test("asset path helpers use provider-specific contract paths", () => {
+  assert.equal(
+    allowanceBackgroundAssetPath("claude", "warning"),
+    "resources/actions/ai-allowance/backgrounds/claude/warning.svg"
+  );
+  assert.equal(
+    allowanceTransitionAssetPath("codex", "critical"),
+    "resources/actions/ai-allowance/transitions/codex/critical.gif"
+  );
 });
 
 test("normalizes Codex ChatGPT usage response for selected window", () => {

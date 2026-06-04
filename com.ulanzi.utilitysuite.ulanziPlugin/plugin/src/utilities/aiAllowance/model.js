@@ -1,6 +1,7 @@
 export const PROVIDERS = new Set(["codex", "claude"]);
 export const WINDOWS = new Set(["five_hour", "weekly"]);
 export const SOURCES = new Set(["auto_status", "manual"]);
+export const ANIMATIONS = new Set(["transition", "off"]);
 
 export const PROVIDER_LABELS = {
   codex: "Codex",
@@ -24,6 +25,7 @@ const DEFAULT_SETTINGS = {
   label: "",
   warningPercent: 25,
   criticalPercent: 10,
+  animation: "transition",
   remainingPercent: "",
   resetAt: "",
   notes: ""
@@ -56,6 +58,7 @@ export function normalizeAiAllowanceSettings(raw = {}) {
   const provider = PROVIDERS.has(raw.provider) ? raw.provider : DEFAULT_SETTINGS.provider;
   const window = WINDOWS.has(raw.window) ? raw.window : DEFAULT_SETTINGS.window;
   const source = SOURCES.has(raw.source) ? raw.source : DEFAULT_SETTINGS.source;
+  const animation = ANIMATIONS.has(raw.animation) ? raw.animation : DEFAULT_SETTINGS.animation;
   const criticalPercent = clampPercent(raw.criticalPercent, DEFAULT_SETTINGS.criticalPercent);
   const warningPercent = Math.max(
     criticalPercent,
@@ -72,6 +75,7 @@ export function normalizeAiAllowanceSettings(raw = {}) {
     label: normalizeText(raw.label),
     warningPercent,
     criticalPercent,
+    animation,
     remainingPercent,
     resetAt: normalizeResetAt(raw.resetAt),
     notes: normalizeText(raw.notes, 160)
@@ -86,6 +90,7 @@ export function hasAiAllowanceSettingsPayload(settings = {}) {
         Object.prototype.hasOwnProperty.call(settings, "provider") ||
         Object.prototype.hasOwnProperty.call(settings, "window") ||
         Object.prototype.hasOwnProperty.call(settings, "source") ||
+        Object.prototype.hasOwnProperty.call(settings, "animation") ||
         Object.prototype.hasOwnProperty.call(settings, "remainingPercent") ||
         Object.prototype.hasOwnProperty.call(settings, "resetAt")
       )

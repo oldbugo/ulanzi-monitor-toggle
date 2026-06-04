@@ -4,6 +4,7 @@ import path from "node:path";
 import { contextFrom, settingsFrom } from "../../runtime/messages.js";
 import { AI_ALLOWANCE_ACTION_UUID } from "../../suite/identifiers.js";
 import {
+  ANIMATIONS,
   PROVIDER_LABELS,
   PROVIDERS,
   SOURCES,
@@ -28,14 +29,19 @@ import {
 } from "./providers.js";
 
 const SCHEDULED_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const TRANSITION_ICON_SETTLE_MS = 1800;
+const AI_ALLOWANCE_RESOURCE_PATH = "resources/actions/ai-allowance";
+const VISUAL_BANDS = ["full", "healthy", "caution", "warning", "critical", "unknown"];
 
 export {
   PROVIDER_ADAPTERS,
+  ANIMATIONS,
   PROVIDER_LABELS,
   PROVIDERS,
   SOURCES,
   WINDOW_LABELS,
   WINDOWS,
+  VISUAL_BANDS,
   hasAiAllowanceSettingsPayload,
   manualSnapshotFromSettings,
   mergeClaudeOauthRefreshCredentials,
@@ -126,30 +132,101 @@ function escapeSvgText(value) {
     .replace(/"/g, "&quot;");
 }
 
-function iconColors(level, source, status) {
-  if (status === "stale") {
+export function visualBandFromSnapshot(snapshot) {
+  if (snapshot?.remainingPercent === null || snapshot?.remainingPercent === undefined) {
+    return "unknown";
+  }
+
+  const remaining = Number(snapshot?.remainingPercent);
+  if (!Number.isFinite(remaining)) {
+    return "unknown";
+  }
+
+  if (remaining >= 76) {
+    return "full";
+  }
+
+  if (remaining >= 51) {
+    return "healthy";
+  }
+
+  if (remaining >= 26) {
+    return "caution";
+  }
+
+  if (remaining >= 11) {
+    return "warning";
+  }
+
+  return "critical";
+}
+
+function visualBandColors(band, source, status) {
+  if (band === "unknown" && status === "stale") {
     return { background: "#475569", foreground: "#f8fafc", accent: "#cbd5e1" };
   }
 
-  if (source === "manual" && level !== "critical" && level !== "warning") {
-    return { background: "#1d4ed8", foreground: "#eff6ff", accent: "#93c5fd" };
-  }
-
-  switch (level) {
-    case "critical":
-      return { background: "#991b1b", foreground: "#fee2e2", accent: "#fca5a5" };
+  switch (band) {
+    case "full":
+      return { background: "#0f766e", foreground: "#ecfeff", accent: "#99f6e4" };
+    case "healthy":
+      return { background: "#166534", foreground: "#f0fdf4", accent: "#bbf7d0" };
+    case "caution":
+      return { background: "#854d0e", foreground: "#fffbeb", accent: "#fde68a" };
     case "warning":
       return { background: "#b45309", foreground: "#fff7ed", accent: "#fed7aa" };
-    case "ok":
-      return { background: "#0f766e", foreground: "#ecfeff", accent: "#99f6e4" };
+    case "critical":
+      return { background: "#991b1b", foreground: "#fee2e2", accent: "#fca5a5" };
     case "unknown":
     default:
+      if (source === "manual") {
+        return { background: "#1d4ed8", foreground: "#eff6ff", accent: "#93c5fd" };
+      }
       return { background: "#334155", foreground: "#e2e8f0", accent: "#94a3b8" };
   }
 }
 
-export function generateAllowanceIconSvg(snapshot, settings, now = new Date()) {
-  const colors = iconColors(snapshot.level, snapshot.source, snapshot.status);
+function relativeAssetPath(...parts) {
+  return path.posix.join(AI_ALLOWANCE_RESOURCE_PATH, ...parts);
+}
+
+function absoluteAssetPath(resourceRoot, ...parts) {
+  return path.join(resourceRoot, ...parts);
+}
+
+export function allowanceBackgroundAssetPath(provider, band) {
+  return relativeAssetPath("backgrounds", provider, `${band}.svg`);
+}
+
+export function allowanceTransitionAssetPath(provider, band) {
+  return relativeAssetPath("transitions", provider, `${band}.gif`);
+}
+
+function extractSvgInner(svg) {
+  const match = String(svg || "")
+    .replace(/<\?xml[\s\S]*?\?>/i, "")
+    .match(/<svg\b[^>]*>([\s\S]*?)<\/svg>/i);
+  return match?.[1]?.trim() || "";
+}
+
+function backgroundLayerSvg(snapshot, settings, band, colors, options = {}) {
+  const resourceRoot = options.resourceRoot;
+  if (resourceRoot && band !== "unknown") {
+    const file = absoluteAssetPath(resourceRoot, "backgrounds", settings.provider, `${band}.svg`);
+    if (fs.existsSync(file)) {
+      const inner = extractSvgInner(fs.readFileSync(file, "utf8"));
+      if (inner) {
+        return `<g data-background-provider="${escapeSvgText(settings.provider)}" data-background-band="${escapeSvgText(band)}">${inner}</g>`;
+      }
+    }
+  }
+
+  return `<rect width="144" height="144" rx="18" fill="${colors.background}"/>`;
+}
+
+export function generateAllowanceIconSvg(snapshot, settings, now = new Date(), options = {}) {
+  const band = visualBandFromSnapshot(snapshot);
+  const colors = visualBandColors(band, snapshot.source, snapshot.status);
   const provider = settings.provider === "claude" ? "CLAUDE" : "CODEX";
   const percent = snapshot.remainingPercent === null || snapshot.remainingPercent === undefined
     ? "?"
@@ -163,18 +240,41 @@ export function generateAllowanceIconSvg(snapshot, settings, now = new Date()) {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
-  <rect width="144" height="144" rx="18" fill="${colors.background}"/>
-  <text x="72" y="30" text-anchor="middle" fill="${colors.accent}" font-family="Arial, sans-serif" font-size="16" font-weight="700">${escapeSvgText(provider)}</text>
-  <text x="72" y="78" text-anchor="middle" fill="${colors.foreground}" font-family="Arial, sans-serif" font-size="38" font-weight="800">${escapeSvgText(percent)}</text>
-  <text x="72" y="105" text-anchor="middle" fill="${colors.foreground}" font-family="Arial, sans-serif" font-size="15" font-weight="700">${escapeSvgText(reset)}</text>
-  <text x="72" y="126" text-anchor="middle" fill="${colors.accent}" font-family="Arial, sans-serif" font-size="12" font-weight="700">${escapeSvgText(mode)}</text>
+  ${backgroundLayerSvg(snapshot, settings, band, colors, options)}
+  <text x="72" y="30" text-anchor="middle" fill="${colors.accent}" stroke="#000000" stroke-opacity="0.18" stroke-width="3" paint-order="stroke" font-family="Arial, sans-serif" font-size="16" font-weight="700">${escapeSvgText(provider)}</text>
+  <text x="72" y="78" text-anchor="middle" fill="${colors.foreground}" stroke="#000000" stroke-opacity="0.22" stroke-width="4" paint-order="stroke" font-family="Arial, sans-serif" font-size="38" font-weight="800">${escapeSvgText(percent)}</text>
+  <text x="72" y="105" text-anchor="middle" fill="${colors.foreground}" stroke="#000000" stroke-opacity="0.20" stroke-width="3" paint-order="stroke" font-family="Arial, sans-serif" font-size="15" font-weight="700">${escapeSvgText(reset)}</text>
+  <text x="72" y="126" text-anchor="middle" fill="${colors.accent}" stroke="#000000" stroke-opacity="0.18" stroke-width="2" paint-order="stroke" font-family="Arial, sans-serif" font-size="12" font-weight="700">${escapeSvgText(mode)}</text>
 </svg>`;
+}
+
+export function shouldUseTransitionAnimation(previousBand, currentBand, snapshot, settings, transitionExists, api) {
+  const remaining = snapshot?.remainingPercent;
+  const hasKnownRemaining =
+    remaining !== null &&
+    remaining !== undefined &&
+    Number.isFinite(Number(remaining));
+  return Boolean(
+    settings.animation === "transition" &&
+      hasKnownRemaining &&
+      currentBand !== "unknown" &&
+      previousBand &&
+      previousBand !== currentBand &&
+      transitionExists &&
+      (
+        typeof api?.setGifPathIcon === "function" ||
+        typeof api?.setGifDataIcon === "function"
+      )
+  );
 }
 
 export function createAiAllowanceUtility({ api, paths }) {
   const stateRoot = path.join(paths.stateRoot, "ai-allowance");
+  const resourceRoot = path.join(paths.pluginRoot, AI_ALLOWANCE_RESOURCE_PATH);
   const settingsByContext = new Map();
   const snapshotsByContext = new Map();
+  const visualBandsByContext = new Map();
+  const transitionTimersByContext = new Map();
   let refreshTimer = null;
 
   function statePathFor(context) {
@@ -228,13 +328,21 @@ export function createAiAllowanceUtility({ api, paths }) {
     snapshotsByContext.set(context, snapshot);
   }
 
-  function setButtonIcon(context, settings, snapshot) {
-    const now = new Date();
-    const title = snapshotTitle(snapshot, settings);
-    const subtitle = snapshotSubtitle(snapshot, settings, now);
+  function clearTransitionTimer(context) {
+    const timer = transitionTimersByContext.get(context);
+    if (timer) {
+      clearTimeout(timer);
+      transitionTimersByContext.delete(context);
+    }
+  }
 
+  function setStaticButtonIcon(context, settings, snapshot, title, subtitle, now) {
     if (typeof api.setBaseDataIcon === "function") {
-      api.setBaseDataIcon(context, svgBase64(generateAllowanceIconSvg(snapshot, settings, now)), title);
+      api.setBaseDataIcon(
+        context,
+        svgBase64(generateAllowanceIconSvg(snapshot, settings, now, { resourceRoot })),
+        title
+      );
       return;
     }
 
@@ -246,6 +354,67 @@ export function createAiAllowanceUtility({ api, paths }) {
           ? 0
           : 3;
     api.setStateIcon?.(context, state, title || subtitle);
+  }
+
+  function setTransitionIcon(context, settings, band, title) {
+    const relativeGifPath = allowanceTransitionAssetPath(settings.provider, band);
+    const absoluteGifPath = path.join(paths.pluginRoot, relativeGifPath);
+    if (!fs.existsSync(absoluteGifPath)) {
+      return false;
+    }
+
+    if (typeof api.setGifPathIcon === "function") {
+      api.setGifPathIcon(context, relativeGifPath, title);
+      return true;
+    }
+
+    if (typeof api.setGifDataIcon === "function") {
+      api.setGifDataIcon(context, fs.readFileSync(absoluteGifPath).toString("base64"), title);
+      return true;
+    }
+
+    return false;
+  }
+
+  function setButtonIcon(context, settings, snapshot) {
+    const now = new Date();
+    const title = snapshotTitle(snapshot, settings);
+    const subtitle = snapshotSubtitle(snapshot, settings, now);
+    const previousBand = visualBandsByContext.get(context);
+    const currentBand = visualBandFromSnapshot(snapshot);
+    const transitionPath = path.join(resourceRoot, "transitions", settings.provider, `${currentBand}.gif`);
+    const transitionExists = fs.existsSync(transitionPath);
+    const shouldAnimate = shouldUseTransitionAnimation(
+      previousBand,
+      currentBand,
+      snapshot,
+      settings,
+      transitionExists,
+      api
+    );
+
+    visualBandsByContext.set(context, currentBand);
+    clearTransitionTimer(context);
+
+    let didStartTransition = false;
+    if (shouldAnimate) {
+      try {
+        didStartTransition = setTransitionIcon(context, settings, currentBand, title);
+      } catch (error) {
+        api.logMessage?.(`AI Allowance Monitor transition icon failed: ${error.message}`);
+      }
+    }
+
+    if (didStartTransition) {
+      const timer = setTimeout(() => {
+        transitionTimersByContext.delete(context);
+        setStaticButtonIcon(context, settings, snapshot, title, subtitle, new Date());
+      }, TRANSITION_ICON_SETTLE_MS);
+      transitionTimersByContext.set(context, timer);
+      return;
+    }
+
+    setStaticButtonIcon(context, settings, snapshot, title, subtitle, now);
   }
 
   function showCachedSnapshot(context, settings, options = {}) {
@@ -341,6 +510,9 @@ export function createAiAllowanceUtility({ api, paths }) {
     stop() {
       clearInterval(refreshTimer);
       refreshTimer = null;
+      for (const context of transitionTimersByContext.keys()) {
+        clearTransitionTimer(context);
+      }
     },
     onConnected: ensureRefreshTimer,
     onAdd: handleSettingsMessage,
