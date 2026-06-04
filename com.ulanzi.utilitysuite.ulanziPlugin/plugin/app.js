@@ -9,7 +9,8 @@ let UlanziApi;
 const devCliMode =
   process.argv.includes("--list-displays") ||
   process.argv.includes("--ai-allowance-status") ||
-  process.argv.includes("--restart-ulanzi-dry-run");
+  process.argv.includes("--restart-ulanzi-dry-run") ||
+  process.argv.includes("--restart-ulanzi-launch-dry-run");
 
 try {
   UlanziApi = (await import("./plugin-common-node/index.js")).default;

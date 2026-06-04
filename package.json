@@ -11,6 +11,7 @@
     "ai-allowance:codex": "node .\\com.ulanzi.utilitysuite.ulanziPlugin\\plugin\\app.js --ai-allowance-status codex",
     "ai-allowance:claude": "node .\\com.ulanzi.utilitysuite.ulanziPlugin\\plugin\\app.js --ai-allowance-status claude",
     "restart-ulanzi:dry-run": "node .\\com.ulanzi.utilitysuite.ulanziPlugin\\plugin\\app.js --restart-ulanzi-dry-run",
+    "restart-ulanzi:launch-dry-run": "node .\\com.ulanzi.utilitysuite.ulanziPlugin\\plugin\\app.js --restart-ulanzi-launch-dry-run",
     "test:ai-allowance": "node --test .\\tests\\ai-allowance.test.js"
   }
 }
