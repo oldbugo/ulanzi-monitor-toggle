@@ -6,6 +6,7 @@ import test from "node:test";
 
 import {
   allowanceBackgroundAssetPath,
+  allowanceSharedBackgroundAssetPath,
   allowanceTransitionAssetPath,
   generateAllowanceIconSvg,
   manualSnapshotFromSettings,
@@ -177,6 +178,31 @@ test("provider static background asset is used when present", () => {
   }
 });
 
+test("shared raster background asset is embedded when provider asset is absent", () => {
+  const resourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ai-allowance-background-"));
+  try {
+    const backgroundDir = path.join(resourceRoot, "backgrounds", "shared");
+    fs.mkdirSync(backgroundDir, { recursive: true });
+    fs.writeFileSync(path.join(backgroundDir, "caution.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    const settings = normalizeAiAllowanceSettings({ provider: "codex" });
+    const svg = generateAllowanceIconSvg({
+      provider: "codex",
+      window: "five_hour",
+      source: "auto_status",
+      status: "live",
+      level: "ok",
+      remainingPercent: 40,
+      resetAt: null
+    }, settings, new Date("2026-06-03T10:00:00.000Z"), { resourceRoot });
+
+    assert.match(svg, /data-background-provider="shared"/);
+    assert.match(svg, /href="data:image\/png;base64,/);
+    assert.match(svg, /preserveAspectRatio="xMidYMid slice"/);
+  } finally {
+    fs.rmSync(resourceRoot, { recursive: true, force: true });
+  }
+});
+
 test("transition animation only triggers on known band changes with GIF support", () => {
   const settings = normalizeAiAllowanceSettings({ animation: "transition" });
   const api = { setGifPathIcon() {} };
@@ -193,6 +219,14 @@ test("asset path helpers use provider-specific contract paths", () => {
   assert.equal(
     allowanceBackgroundAssetPath("claude", "warning"),
     "resources/actions/ai-allowance/backgrounds/claude/warning.svg"
+  );
+  assert.equal(
+    allowanceBackgroundAssetPath("codex", "full", "png"),
+    "resources/actions/ai-allowance/backgrounds/codex/full.png"
+  );
+  assert.equal(
+    allowanceSharedBackgroundAssetPath("healthy", "webp"),
+    "resources/actions/ai-allowance/backgrounds/shared/healthy.webp"
   );
   assert.equal(
     allowanceTransitionAssetPath("codex", "critical"),

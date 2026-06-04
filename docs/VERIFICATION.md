@@ -39,7 +39,7 @@ Granular AI allowance backgrounds verified:
 | AI allowance index syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\utilities\aiAllowance\index.js` | Passed |
 | AI allowance model syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\utilities\aiAllowance\model.js` | Passed |
 | Dev Ulanzi API syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\runtime\devUlanziApi.js` | Passed |
-| AI allowance unit tests | `npm run test:ai-allowance` | Passed; 15 `node:test` cases, including visual band boundaries, static asset fallback, provider background loading, and transition animation gating |
+| AI allowance unit tests | `npm run test:ai-allowance` | Passed; 16 `node:test` cases, including visual band boundaries, static asset fallback, provider and shared background loading, raster embedding, and transition animation gating |
 | JSON parse | `npm run validate:json` | Passed |
 | Codex allowance CLI | `npm run ai-allowance:codex` | Passed; returned `live`; 45% remaining, 55% used |
 | Claude allowance CLI | `npm run ai-allowance:claude` | Passed; returned `live`; 26% remaining, 74% used |

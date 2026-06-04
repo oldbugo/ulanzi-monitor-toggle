@@ -32,6 +32,13 @@ const SCHEDULED_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const TRANSITION_ICON_SETTLE_MS = 1800;
 const AI_ALLOWANCE_RESOURCE_PATH = "resources/actions/ai-allowance";
 const VISUAL_BANDS = ["full", "healthy", "caution", "warning", "critical", "unknown"];
+const STATIC_BACKGROUND_EXTENSIONS = [".svg", ".png", ".jpg", ".jpeg", ".webp"];
+const STATIC_BACKGROUND_MIME_TYPES = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp"
+};
 
 export {
   PROVIDER_ADAPTERS,
@@ -194,8 +201,16 @@ function absoluteAssetPath(resourceRoot, ...parts) {
   return path.join(resourceRoot, ...parts);
 }
 
-export function allowanceBackgroundAssetPath(provider, band) {
-  return relativeAssetPath("backgrounds", provider, `${band}.svg`);
+function normalizeAssetExtension(extension) {
+  return String(extension || "svg").trim().toLowerCase().replace(/^\./, "") || "svg";
+}
+
+export function allowanceBackgroundAssetPath(provider, band, extension = "svg") {
+  return relativeAssetPath("backgrounds", provider, `${band}.${normalizeAssetExtension(extension)}`);
+}
+
+export function allowanceSharedBackgroundAssetPath(band, extension = "png") {
+  return relativeAssetPath("backgrounds", "shared", `${band}.${normalizeAssetExtension(extension)}`);
 }
 
 export function allowanceTransitionAssetPath(provider, band) {
@@ -209,14 +224,47 @@ function extractSvgInner(svg) {
   return match?.[1]?.trim() || "";
 }
 
+function backgroundAssetCandidates(resourceRoot, provider, band) {
+  return [
+    ["provider", provider, ["backgrounds", provider]],
+    ["shared", "shared", ["backgrounds", "shared"]]
+  ].flatMap(([scope, label, parts]) => STATIC_BACKGROUND_EXTENSIONS.map((extension) => ({
+    extension,
+    label,
+    scope,
+    file: absoluteAssetPath(resourceRoot, ...parts, `${band}${extension}`)
+  })));
+}
+
+function rasterBackgroundLayerSvg(asset, band) {
+  const mimeType = STATIC_BACKGROUND_MIME_TYPES[asset.extension];
+  if (!mimeType) {
+    return "";
+  }
+
+  const data = fs.readFileSync(asset.file).toString("base64");
+  return `<image data-background-provider="${escapeSvgText(asset.label)}" data-background-band="${escapeSvgText(band)}" href="data:${mimeType};base64,${data}" x="0" y="0" width="144" height="144" preserveAspectRatio="xMidYMid slice"/>`;
+}
+
 function backgroundLayerSvg(snapshot, settings, band, colors, options = {}) {
   const resourceRoot = options.resourceRoot;
   if (resourceRoot && band !== "unknown") {
-    const file = absoluteAssetPath(resourceRoot, "backgrounds", settings.provider, `${band}.svg`);
-    if (fs.existsSync(file)) {
-      const inner = extractSvgInner(fs.readFileSync(file, "utf8"));
-      if (inner) {
-        return `<g data-background-provider="${escapeSvgText(settings.provider)}" data-background-band="${escapeSvgText(band)}">${inner}</g>`;
+    for (const asset of backgroundAssetCandidates(resourceRoot, settings.provider, band)) {
+      if (!fs.existsSync(asset.file)) {
+        continue;
+      }
+
+      if (asset.extension === ".svg") {
+        const inner = extractSvgInner(fs.readFileSync(asset.file, "utf8"));
+        if (inner) {
+          return `<g data-background-provider="${escapeSvgText(asset.label)}" data-background-band="${escapeSvgText(band)}">${inner}</g>`;
+        }
+        continue;
+      }
+
+      const rasterLayer = rasterBackgroundLayerSvg(asset, band);
+      if (rasterLayer) {
+        return rasterLayer;
       }
     }
   }
