@@ -174,6 +174,8 @@
       const resetFiveButton = document.getElementById("reset-five");
       const resetWeekButton = document.getElementById("reset-week");
       let hasHydrated = false;
+      let hasAppliedSettings = false;
+      let hasUserEditedSettings = false;
 
       function pad(value) {
         return String(value).padStart(2, "0");
@@ -219,8 +221,27 @@
         };
       }
 
+      function hasSettings(settings) {
+        return Boolean(
+          settings &&
+            (
+              Object.prototype.hasOwnProperty.call(settings, "provider") ||
+              Object.prototype.hasOwnProperty.call(settings, "window") ||
+              Object.prototype.hasOwnProperty.call(settings, "source") ||
+              Object.prototype.hasOwnProperty.call(settings, "remainingPercent") ||
+              Object.prototype.hasOwnProperty.call(settings, "resetAt")
+            )
+        );
+      }
+
       function applySettings(settings) {
+        if (!hasSettings(settings)) {
+          syncModeVisibility();
+          return;
+        }
+
         const normalized = normalizeSettings(settings || {});
+        hasAppliedSettings = true;
         Utils.setFormValue(normalized, FORM_SELECTOR);
         syncModeVisibility();
       }
@@ -280,18 +301,26 @@
         hasHydrated = true;
         syncModeVisibility();
         $UD.getSettings();
-        requestStatus();
       }
 
       $UD.onConnected(hydrate);
 
       $UD.onAdd((message) => {
+        hasAppliedSettings = false;
+        hasUserEditedSettings = false;
         applySettings(message?.param || {});
         hydrate();
       });
 
       $UD.onDidReceiveSettings((message) => {
+        if (hasUserEditedSettings) {
+          return;
+        }
+
         applySettings(message?.settings || message?.param || {});
+        if (hasAppliedSettings && !hasUserEditedSettings) {
+          requestStatus();
+        }
       });
 
       $UD.onSendToPropertyInspector((message) => {
@@ -300,23 +329,28 @@
           return;
         }
 
-        if (payload.settings) {
+        if (payload.settings && !hasAppliedSettings && !hasUserEditedSettings) {
           applySettings(payload.settings);
         }
 
         setStatus(payload.snapshot, payload.error);
       });
 
-      form.addEventListener("input", debouncedSave);
+      form.addEventListener("input", () => {
+        hasUserEditedSettings = true;
+        debouncedSave();
+      });
       form.addEventListener("change", () => {
+        hasUserEditedSettings = true;
         syncModeVisibility();
         saveSettings();
+        requestStatus();
       });
       refreshButton.addEventListener("click", requestStatus);
       resetFiveButton.addEventListener("click", () => setResetHours(5));
       resetWeekButton.addEventListener("click", () => setResetHours(24 * 7));
 
-      applySettings({});
+      syncModeVisibility();
       $UD.connect(ACTION_UUID);
     </script>
   </body>
