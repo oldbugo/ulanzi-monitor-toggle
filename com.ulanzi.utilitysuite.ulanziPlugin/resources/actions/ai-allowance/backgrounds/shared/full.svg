@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <defs>
+    <linearGradient id="full-base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a83df6"/>
+      <stop offset="0.36" stop-color="#4317df"/>
+      <stop offset="0.72" stop-color="#5aa7ff"/>
+      <stop offset="1" stop-color="#dca5ff"/>
+    </linearGradient>
+    <radialGradient id="full-cyan" cx="75%" cy="50%" r="62%">
+      <stop offset="0" stop-color="#dbf7ff" stop-opacity="0.82"/>
+      <stop offset="0.48" stop-color="#95d6ff" stop-opacity="0.58"/>
+      <stop offset="1" stop-color="#95d6ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="full-lavender" cx="33%" cy="84%" r="56%">
+      <stop offset="0" stop-color="#c7c9ff" stop-opacity="0.74"/>
+      <stop offset="0.5" stop-color="#7b7dff" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#7b7dff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="144" height="144" fill="url(#full-base)"/>
+  <rect width="144" height="144" fill="url(#full-cyan)"/>
+  <rect width="144" height="144" fill="url(#full-lavender)"/>
+</svg>

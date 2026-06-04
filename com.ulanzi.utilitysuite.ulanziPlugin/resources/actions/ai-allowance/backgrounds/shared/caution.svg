@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <defs>
+    <linearGradient id="caution-base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7438f5"/>
+      <stop offset="0.35" stop-color="#2821d7"/>
+      <stop offset="0.63" stop-color="#7089ff"/>
+      <stop offset="1" stop-color="#ff7f8d"/>
+    </linearGradient>
+    <radialGradient id="caution-gold" cx="86%" cy="48%" r="60%">
+      <stop offset="0" stop-color="#ffe65c" stop-opacity="0.88"/>
+      <stop offset="0.48" stop-color="#ffa33d" stop-opacity="0.66"/>
+      <stop offset="1" stop-color="#ffa33d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="caution-rose" cx="73%" cy="90%" r="64%">
+      <stop offset="0" stop-color="#ffd66f" stop-opacity="0.78"/>
+      <stop offset="0.42" stop-color="#ff7b96" stop-opacity="0.58"/>
+      <stop offset="1" stop-color="#ff7b96" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="144" height="144" fill="url(#caution-base)"/>
+  <rect width="144" height="144" fill="url(#caution-gold)"/>
+  <rect width="144" height="144" fill="url(#caution-rose)"/>
+</svg>
