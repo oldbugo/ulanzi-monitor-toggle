@@ -20,11 +20,14 @@ import {
 } from "./model.js";
 import {
   PROVIDER_ADAPTERS,
+  mergeClaudeOauthRefreshCredentials,
   normalizeClaudeOauthUsageSnapshot,
   normalizeCodexUsageSnapshot,
   resolveAutoStatusSnapshot,
   runCommand
 } from "./providers.js";
+
+const SCHEDULED_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 export {
   PROVIDER_ADAPTERS,
@@ -35,6 +38,7 @@ export {
   WINDOWS,
   hasAiAllowanceSettingsPayload,
   manualSnapshotFromSettings,
+  mergeClaudeOauthRefreshCredentials,
   normalizeClaudeOauthUsageSnapshot,
   normalizeCodexUsageSnapshot,
   normalizeAiAllowanceSettings,
@@ -303,7 +307,7 @@ export function createAiAllowanceUtility({ api, paths }) {
           api.logMessage?.(`AI Allowance Monitor scheduled refresh failed: ${error.message}`);
         });
       }
-    }, 60000);
+    }, SCHEDULED_REFRESH_INTERVAL_MS);
   }
 
   async function handleCli(argv = process.argv) {

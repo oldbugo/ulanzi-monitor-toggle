@@ -22,6 +22,12 @@ export const PROVIDER_ADAPTERS = {
 
 const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const CLAUDE_OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
+const CLAUDE_OAUTH_TOKEN_URL = "https://platform.claude.com/v1/oauth/token";
+const CLAUDE_CODE_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+const CLAUDE_OAUTH_REFRESH_SKEW_MS = 2 * 60 * 1000;
+const PROVIDER_USAGE_CACHE_TTL_MS = 5 * 60 * 1000;
+const PROVIDER_USAGE_STALE_FALLBACK_MS = 30 * 60 * 1000;
+const providerUsageCache = new Map();
 
 export function runCommand(command, args = [], timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
@@ -60,6 +66,12 @@ function readJsonFile(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+function writeJsonFileAtomic(file, data) {
+  const temporaryFile = `${file}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(temporaryFile, JSON.stringify(data, null, 2));
+  fs.renameSync(temporaryFile, file);
+}
+
 function resetAtFromWindow(windowData, now = new Date()) {
   const resetAtSeconds = Number(windowData?.reset_at);
   if (Number.isFinite(resetAtSeconds) && resetAtSeconds > 0) {
@@ -89,6 +101,13 @@ function percent(value) {
   }
 
   return Math.max(0, Math.min(100, Math.round(number)));
+}
+
+function requestError(message, status = null, data = null) {
+  const error = new Error(message);
+  error.status = status;
+  error.data = data;
+  return error;
 }
 
 function remainingPercentFromUsedPercent(usedPercent) {
@@ -179,7 +198,100 @@ function claudeCredentialCandidates() {
   return candidates;
 }
 
-function claudeOauthTokenSource() {
+function claudeOauthFromCredentials(credentials = {}) {
+  return credentials.claudeAiOauth || credentials;
+}
+
+function claudeOauthAccessToken(oauth = {}) {
+  return oauth.accessToken || oauth.access_token;
+}
+
+function claudeOauthRefreshToken(oauth = {}) {
+  return oauth.refreshToken || oauth.refresh_token;
+}
+
+function claudeOauthExpiresAtMs(oauth = {}) {
+  const raw = oauth.expiresAt ?? oauth.expires_at;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return value > 100000000000 ? value : value * 1000;
+}
+
+function claudeOauthNeedsRefresh(oauth = {}, now = new Date()) {
+  const expiresAt = claudeOauthExpiresAtMs(oauth);
+  return Boolean(expiresAt && expiresAt - now.getTime() <= CLAUDE_OAUTH_REFRESH_SKEW_MS);
+}
+
+export function mergeClaudeOauthRefreshCredentials(credentials, response, now = new Date()) {
+  const oauth = claudeOauthFromCredentials(credentials);
+  const accessToken = response?.access_token;
+  const expiresIn = Number(response?.expires_in);
+  if (!accessToken || !Number.isFinite(expiresIn) || expiresIn <= 0) {
+    throw new Error("Claude OAuth refresh response did not include access_token and expires_in.");
+  }
+
+  const refreshToken = response.refresh_token || claudeOauthRefreshToken(oauth);
+  const expiresAt = now.getTime() + expiresIn * 1000;
+  const refreshedOauth = {
+    ...oauth,
+    accessToken,
+    refreshToken,
+    expiresAt
+  };
+
+  if (typeof response.scope === "string") {
+    refreshedOauth.scopes = response.scope.split(/\s+/).filter(Boolean);
+  }
+
+  if (credentials.claudeAiOauth) {
+    return {
+      ...credentials,
+      claudeAiOauth: refreshedOauth
+    };
+  }
+
+  return {
+    ...credentials,
+    ...refreshedOauth
+  };
+}
+
+async function refreshClaudeOauthCredentials(file, credentials, now = new Date()) {
+  const oauth = claudeOauthFromCredentials(credentials);
+  const refreshToken = claudeOauthRefreshToken(oauth);
+  if (!refreshToken) {
+    throw new Error(`${file} has an expired Claude access token and no refresh token.`);
+  }
+
+  const data = await fetchJson(CLAUDE_OAUTH_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "anthropic-beta": "oauth-2025-04-20"
+    },
+    body: JSON.stringify({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: CLAUDE_CODE_CLIENT_ID
+    })
+  });
+  const updatedCredentials = mergeClaudeOauthRefreshCredentials(credentials, data, now);
+  writeJsonFileAtomic(file, updatedCredentials);
+  const updatedOauth = claudeOauthFromCredentials(updatedCredentials);
+  return {
+    token: claudeOauthAccessToken(updatedOauth),
+    source: file,
+    refreshed: true,
+    refresh() {
+      return refreshClaudeOauthCredentials(file, updatedCredentials);
+    }
+  };
+}
+
+async function claudeOauthTokenSource(now = new Date()) {
   if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
     return {
       token: process.env.CLAUDE_CODE_OAUTH_TOKEN,
@@ -193,14 +305,23 @@ function claudeOauthTokenSource() {
   }
 
   const credentials = readJsonFile(file);
-  const token = credentials?.claudeAiOauth?.accessToken || credentials?.accessToken;
+  const oauth = claudeOauthFromCredentials(credentials);
+  if (claudeOauthNeedsRefresh(oauth, now)) {
+    return refreshClaudeOauthCredentials(file, credentials, now);
+  }
+
+  const token = claudeOauthAccessToken(oauth);
   if (!token) {
     throw new Error(`${file} exists but does not contain a Claude OAuth access token.`);
   }
 
   return {
     token,
-    source: file
+    source: file,
+    refreshed: false,
+    refresh() {
+      return refreshClaudeOauthCredentials(file, credentials);
+    }
   };
 }
 
@@ -211,14 +332,58 @@ async function fetchJson(url, options = {}) {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(`${url} returned non-JSON status ${response.status}`);
+    throw requestError(`${url} returned non-JSON status ${response.status}`, response.status, text);
   }
 
   if (!response.ok) {
-    throw new Error(data?.error?.message || data?.detail || `${url} returned status ${response.status}`);
+    throw requestError(
+      data?.error?.message || data?.detail || `${url} returned status ${response.status}`,
+      response.status,
+      data
+    );
   }
 
   return data;
+}
+
+async function cachedProviderUsage(provider, now, fetcher) {
+  const cache = providerUsageCache.get(provider);
+  const nowTime = now.getTime();
+  if (cache?.data && nowTime - cache.fetchedAt <= PROVIDER_USAGE_CACHE_TTL_MS) {
+    return cache.data;
+  }
+
+  if (cache?.pending) {
+    return cache.pending;
+  }
+
+  const pending = fetcher().then((data) => {
+    providerUsageCache.set(provider, {
+      data,
+      fetchedAt: Date.now(),
+      pending: null
+    });
+    return data;
+  }).catch((error) => {
+    if (cache?.data && nowTime - cache.fetchedAt <= PROVIDER_USAGE_STALE_FALLBACK_MS) {
+      providerUsageCache.set(provider, {
+        data: cache.data,
+        fetchedAt: cache.fetchedAt,
+        pending: null
+      });
+      return cache.data;
+    }
+
+    providerUsageCache.delete(provider);
+    throw error;
+  });
+
+  providerUsageCache.set(provider, {
+    data: cache?.data || null,
+    fetchedAt: cache?.fetchedAt || 0,
+    pending
+  });
+  return pending;
 }
 
 async function codexChatGptUsageSnapshot(settings, now = new Date()) {
@@ -233,13 +398,13 @@ async function codexChatGptUsageSnapshot(settings, now = new Date()) {
     return null;
   }
 
-  const data = await fetchJson(CODEX_USAGE_URL, {
+  const data = await cachedProviderUsage("codex", now, () => fetchJson(CODEX_USAGE_URL, {
     headers: {
       accept: "application/json",
       authorization: `Bearer ${accessToken}`,
       "oai-language": "en-US"
     }
-  });
+  }));
   const snapshot = normalizeCodexUsageSnapshot(settings, data, now, null);
   if (!snapshot) {
     throw new Error("ChatGPT usage response did not include the selected allowance window.");
@@ -249,16 +414,31 @@ async function codexChatGptUsageSnapshot(settings, now = new Date()) {
 }
 
 async function claudeOauthUsageSnapshot(settings, now = new Date()) {
-  const tokenSource = claudeOauthTokenSource();
+  let tokenSource = await claudeOauthTokenSource(now);
   if (!tokenSource) {
     return null;
   }
 
-  const data = await fetchJson(CLAUDE_OAUTH_USAGE_URL, {
-    headers: {
-      accept: "application/json",
-      authorization: `Bearer ${tokenSource.token}`,
-      "anthropic-beta": "oauth-2025-04-20"
+  async function fetchClaudeUsage(source) {
+    return fetchJson(CLAUDE_OAUTH_USAGE_URL, {
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${source.token}`,
+        "anthropic-beta": "oauth-2025-04-20"
+      }
+    });
+  }
+
+  const data = await cachedProviderUsage("claude", now, async () => {
+    try {
+      return await fetchClaudeUsage(tokenSource);
+    } catch (error) {
+      if (error.status !== 401 || typeof tokenSource.refresh !== "function") {
+        throw error;
+      }
+
+      tokenSource = await tokenSource.refresh();
+      return fetchClaudeUsage(tokenSource);
     }
   });
   const snapshot = normalizeClaudeOauthUsageSnapshot(settings, data, now, null);

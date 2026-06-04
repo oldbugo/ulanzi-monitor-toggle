@@ -125,7 +125,7 @@ Auto status is best-effort because providers do not expose a stable public API f
 - Claude: reads `CLAUDE_CODE_OAUTH_TOKEN`, or Claude Code OAuth credentials from `%USERPROFILE%\.claude\.credentials.json` / `CLAUDE_CONFIG_DIR`, then calls Anthropic's OAuth usage endpoint.
 - Claude Desktop for Windows: the app profile is app-container encrypted, so V1 does not read its token cache directly.
 
-To enable Claude live status, authenticate Claude Code separately from Claude Desktop. Either run Claude Code and complete `/login`, or run `claude setup-token`, copy the printed token into a user-level `CLAUDE_CODE_OAUTH_TOKEN`, and restart Ulanzi Studio so the plugin process inherits it.
+To enable Claude live status, authenticate Claude Code separately from Claude Desktop. Either run Claude Code and complete `/login`, or run `claude setup-token`, copy the printed token into a user-level `CLAUDE_CODE_OAUTH_TOKEN`, and restart Ulanzi Studio so the plugin process inherits it. When using Claude Code credentials, the monitor refreshes expired OAuth access tokens with the stored refresh token and writes the rotated token back to the same credentials file.
 
 AI allowance cache files are stored under:
 

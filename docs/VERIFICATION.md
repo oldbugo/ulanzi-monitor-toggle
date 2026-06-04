@@ -1,5 +1,37 @@
 # Verification Log
 
+## 2026-06-04
+
+Environment:
+
+- Branch: `codex/utility-suite-foundation`
+- Claude Code version: `2.1.161 (Claude Code)`
+- Plugin package folder: `com.ulanzi.utilitysuite.ulanziPlugin`
+
+Investigation:
+
+| Check | Result |
+| --- | --- |
+| Claude env token | `CLAUDE_CODE_OAUTH_TOKEN` was not set |
+| Claude Code credentials | `%USERPROFILE%\.claude\.credentials.json` existed and contained Claude Code OAuth credentials |
+| Claude access token expiry | Existing access token was expired; expiry was `2026-06-04T04:26:28+10:00` |
+| Raw Claude usage probe before fix | Returned HTTP `429` with `Rate limited. Please try again later.` |
+| Installed plugin copy | Installed `providers.js` matched repository hash before the fix |
+
+Fixes verified:
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Provider syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\utilities\aiAllowance\providers.js` | Passed |
+| Index syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\utilities\aiAllowance\index.js` | Passed |
+| AI allowance unit tests | `npm run test:ai-allowance` | Passed; 10 `node:test` cases |
+| JSON parse | `npm run validate:json` | Passed |
+| Claude five-hour allowance CLI | `npm run ai-allowance:claude` | Passed; returned `live`; 26% remaining, 74% used; reset at `2026-06-04T06:30:01.074Z` |
+| Claude weekly allowance CLI | `node .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\app.js --ai-allowance-status claude --window weekly` | Passed; returned `live`; 58% remaining, 42% used; reset at `2026-06-06T17:00:00.921Z` |
+| Codex allowance CLI | `npm run ai-allowance:codex` | Passed; returned `live`; 78% remaining, 22% used |
+
+Outcome: Claude sync failure was caused by an expired Claude Code OAuth access token plus repeated usage polling after restart. The provider now refreshes expired Claude Code OAuth tokens with the stored refresh token, writes the rotated token back to `%USERPROFILE%\.claude\.credentials.json`, coalesces provider usage calls for five minutes, and uses a five-minute scheduled refresh interval.
+
 ## 2026-06-03
 
 Environment:

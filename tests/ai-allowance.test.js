@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   generateAllowanceIconSvg,
   manualSnapshotFromSettings,
+  mergeClaudeOauthRefreshCredentials,
   normalizeClaudeOauthUsageSnapshot,
   normalizeCodexUsageSnapshot,
   normalizeAiAllowanceSettings,
@@ -185,4 +186,27 @@ test("Claude display percentage renders remaining allowance, not utilization", (
   assert.equal(snapshot.remainingPercent, 30);
   assert.match(svg, />30%<\/text>/);
   assert.doesNotMatch(svg, />70%<\/text>/);
+});
+
+test("merges Claude OAuth refresh response into Claude Code credentials shape", () => {
+  const refreshed = mergeClaudeOauthRefreshCredentials({
+    claudeAiOauth: {
+      accessToken: "old-access",
+      refreshToken: "old-refresh",
+      expiresAt: 1780500000000,
+      scopes: ["user:inference"],
+      subscriptionType: "pro"
+    }
+  }, {
+    access_token: "new-access",
+    refresh_token: "new-refresh",
+    expires_in: 3600,
+    scope: "user:inference user:profile"
+  }, new Date("2026-06-04T01:00:00.000Z"));
+
+  assert.equal(refreshed.claudeAiOauth.accessToken, "new-access");
+  assert.equal(refreshed.claudeAiOauth.refreshToken, "new-refresh");
+  assert.equal(refreshed.claudeAiOauth.expiresAt, 1780538400000);
+  assert.deepEqual(refreshed.claudeAiOauth.scopes, ["user:inference", "user:profile"]);
+  assert.equal(refreshed.claudeAiOauth.subscriptionType, "pro");
 });

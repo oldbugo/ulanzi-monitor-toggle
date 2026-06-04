@@ -42,12 +42,14 @@ The AI Allowance Monitor tracks personal subscription allowance windows, not API
 Auto status uses local authenticated surfaces only:
 
 - Codex reads `%USERPROFILE%\.codex\auth.json`, uses the existing ChatGPT access token to request `https://chatgpt.com/backend-api/wham/usage`, then normalizes `primary_window` as five-hour and `secondary_window` as weekly.
-- Claude reads `CLAUDE_CODE_OAUTH_TOKEN`, or Claude Code OAuth credentials from `%USERPROFILE%\.claude\.credentials.json` / `CLAUDE_CONFIG_DIR`, then requests `https://api.anthropic.com/api/oauth/usage` and normalizes the five-hour and seven-day utilization fields.
+- Claude reads `CLAUDE_CODE_OAUTH_TOKEN`, or Claude Code OAuth credentials from `%USERPROFILE%\.claude\.credentials.json` / `CLAUDE_CONFIG_DIR`, then requests `https://api.anthropic.com/api/oauth/usage` and normalizes the five-hour and seven-day utilization fields. When a Claude Code access token is expired or rejected with 401, the provider refreshes it through Claude Code's OAuth client and writes rotated tokens back to the same credentials file.
 - Claude Desktop's Windows app profile stores auth in an app-container encrypted cache. V1 does not decrypt or scrape that profile.
 
 The utility never stores provider credentials. It caches only normalized status snapshots under `%LOCALAPPDATA%\UlanziUtilitySuite\ai-allowance`.
 
 `remainingPercent` is the canonical displayed percentage. Provider adapters may receive usage or utilization percentages from upstream services, but they must convert those values before rendering or caching. `100%` means the full allowance window remains; `30%` means `70%` has been used. `usedPercent` can be kept as metadata for diagnostics, but it must not be the large button percentage.
+
+Provider usage responses are coalesced in memory for five minutes so multiple keys, such as Claude five-hour and Claude weekly, share one provider call. If a provider refresh fails after a recent successful fetch, the provider adapter can reuse the recent in-memory response while the action-level cache handles longer stale states. Scheduled refreshes run every five minutes; pressing a key still requests a refresh.
 
 ## Utility Contract
 
