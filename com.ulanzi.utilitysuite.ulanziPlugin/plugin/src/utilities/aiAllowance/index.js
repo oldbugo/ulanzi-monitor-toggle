@@ -139,7 +139,11 @@ function escapeSvgText(value) {
     .replace(/"/g, "&quot;");
 }
 
-export function visualBandFromSnapshot(snapshot) {
+function visualThresholds(settings = {}) {
+  return normalizeAiAllowanceSettings(settings);
+}
+
+export function visualBandFromSnapshot(snapshot, settings = {}) {
   if (snapshot?.remainingPercent === null || snapshot?.remainingPercent === undefined) {
     return "unknown";
   }
@@ -149,23 +153,29 @@ export function visualBandFromSnapshot(snapshot) {
     return "unknown";
   }
 
-  if (remaining >= 76) {
+  const thresholds = visualThresholds(settings);
+
+  if (remaining >= thresholds.visualFullPercent) {
     return "full";
   }
 
-  if (remaining >= 51) {
+  if (remaining >= thresholds.visualHealthyPercent) {
     return "healthy";
   }
 
-  if (remaining >= 26) {
+  if (remaining >= thresholds.visualCautionPercent) {
     return "caution";
   }
 
-  if (remaining >= 11) {
+  if (remaining >= thresholds.visualWarningPercent) {
     return "warning";
   }
 
-  return "critical";
+  if (remaining <= thresholds.visualCriticalPercent) {
+    return "critical";
+  }
+
+  return "warning";
 }
 
 function visualBandColors(band, source, status) {
@@ -273,7 +283,7 @@ function backgroundLayerSvg(snapshot, settings, band, colors, options = {}) {
 }
 
 export function generateAllowanceIconSvg(snapshot, settings, now = new Date(), options = {}) {
-  const band = visualBandFromSnapshot(snapshot);
+  const band = visualBandFromSnapshot(snapshot, settings);
   const colors = visualBandColors(band, snapshot.source, snapshot.status);
   const provider = settings.provider === "claude" ? "CLAUDE" : "CODEX";
   const percent = snapshot.remainingPercent === null || snapshot.remainingPercent === undefined
@@ -429,7 +439,7 @@ export function createAiAllowanceUtility({ api, paths }) {
     const title = snapshotTitle(snapshot, settings);
     const subtitle = snapshotSubtitle(snapshot, settings, now);
     const previousBand = visualBandsByContext.get(context);
-    const currentBand = visualBandFromSnapshot(snapshot);
+    const currentBand = visualBandFromSnapshot(snapshot, settings);
     const transitionPath = path.join(resourceRoot, "transitions", settings.provider, `${currentBand}.gif`);
     const transitionExists = fs.existsSync(transitionPath);
     const shouldAnimate = shouldUseTransitionAnimation(

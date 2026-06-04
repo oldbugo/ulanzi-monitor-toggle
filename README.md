@@ -128,6 +128,8 @@ AI Allowance Monitor uses five visual bands for the remaining allowance:
 - `warning`: 25-11
 - `critical`: 10-0
 
+The settings panel exposes the five background thresholds as `Full >=`, `Healthy >=`, `Caution >=`, `Warning >=`, and `Critical <=`. These only affect the background band and transition target. The separate `Warning` and `Critical` fields still control logical alert levels.
+
 Provider-specific backgrounds and transition GIFs can be added under:
 
 ```text

@@ -135,6 +135,31 @@
         </select>
       </div>
 
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Full >=</div>
+        <input class="uspi-item-value" name="visualFullPercent" type="number" min="0" max="100" step="1" value="76">
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Healthy >=</div>
+        <input class="uspi-item-value" name="visualHealthyPercent" type="number" min="0" max="100" step="1" value="51">
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Caution >=</div>
+        <input class="uspi-item-value" name="visualCautionPercent" type="number" min="0" max="100" step="1" value="26">
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Warning >=</div>
+        <input class="uspi-item-value" name="visualWarningPercent" type="number" min="0" max="100" step="1" value="11">
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Critical <=</div>
+        <input class="uspi-item-value" name="visualCriticalPercent" type="number" min="0" max="100" step="1" value="10">
+      </div>
+
       <div class="uspi-item manual-only">
         <div class="uspi-item-label" data-localize>Remaining</div>
         <input class="uspi-item-value" name="remainingPercent" type="number" min="0" max="100" step="1" placeholder="0-100">
@@ -216,6 +241,24 @@
       }
 
       function normalizeSettings(settings) {
+        const visualWarningPercent = normalizePercent(settings.visualWarningPercent, "11");
+        const visualCriticalPercent = String(Math.min(
+          Number(normalizePercent(settings.visualCriticalPercent, "10")),
+          Math.max(0, Number(visualWarningPercent) - 1)
+        ));
+        const visualCautionPercent = String(Math.max(
+          Number(visualWarningPercent),
+          Number(normalizePercent(settings.visualCautionPercent, "26"))
+        ));
+        const visualHealthyPercent = String(Math.max(
+          Number(visualCautionPercent),
+          Number(normalizePercent(settings.visualHealthyPercent, "51"))
+        ));
+        const visualFullPercent = String(Math.max(
+          Number(visualHealthyPercent),
+          Number(normalizePercent(settings.visualFullPercent, "76"))
+        ));
+
         return {
           provider: settings.provider === "claude" ? "claude" : "codex",
           window: settings.window === "weekly" ? "weekly" : "five_hour",
@@ -224,6 +267,11 @@
           animation: settings.animation === "off" ? "off" : "transition",
           warningPercent: normalizePercent(settings.warningPercent, "25"),
           criticalPercent: normalizePercent(settings.criticalPercent, "10"),
+          visualFullPercent,
+          visualHealthyPercent,
+          visualCautionPercent,
+          visualWarningPercent,
+          visualCriticalPercent,
           remainingPercent: settings.remainingPercent === "" ? "" : normalizePercent(settings.remainingPercent, ""),
           resetAt: settings.resetAt || "",
           notes: String(settings.notes || "").trim()
@@ -238,6 +286,13 @@
               Object.prototype.hasOwnProperty.call(settings, "window") ||
               Object.prototype.hasOwnProperty.call(settings, "source") ||
               Object.prototype.hasOwnProperty.call(settings, "animation") ||
+              Object.prototype.hasOwnProperty.call(settings, "warningPercent") ||
+              Object.prototype.hasOwnProperty.call(settings, "criticalPercent") ||
+              Object.prototype.hasOwnProperty.call(settings, "visualFullPercent") ||
+              Object.prototype.hasOwnProperty.call(settings, "visualHealthyPercent") ||
+              Object.prototype.hasOwnProperty.call(settings, "visualCautionPercent") ||
+              Object.prototype.hasOwnProperty.call(settings, "visualWarningPercent") ||
+              Object.prototype.hasOwnProperty.call(settings, "visualCriticalPercent") ||
               Object.prototype.hasOwnProperty.call(settings, "remainingPercent") ||
               Object.prototype.hasOwnProperty.call(settings, "resetAt")
             )

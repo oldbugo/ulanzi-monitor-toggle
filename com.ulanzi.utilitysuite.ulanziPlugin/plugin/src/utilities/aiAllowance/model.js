@@ -25,6 +25,11 @@ const DEFAULT_SETTINGS = {
   label: "",
   warningPercent: 25,
   criticalPercent: 10,
+  visualFullPercent: 76,
+  visualHealthyPercent: 51,
+  visualCautionPercent: 26,
+  visualWarningPercent: 11,
+  visualCriticalPercent: 10,
   animation: "transition",
   remainingPercent: "",
   resetAt: "",
@@ -64,6 +69,23 @@ export function normalizeAiAllowanceSettings(raw = {}) {
     criticalPercent,
     clampPercent(raw.warningPercent, DEFAULT_SETTINGS.warningPercent)
   );
+  const visualWarningPercent = clampPercent(raw.visualWarningPercent, DEFAULT_SETTINGS.visualWarningPercent);
+  const visualCriticalPercent = Math.min(
+    clampPercent(raw.visualCriticalPercent, DEFAULT_SETTINGS.visualCriticalPercent),
+    Math.max(0, visualWarningPercent - 1)
+  );
+  const visualCautionPercent = Math.max(
+    visualWarningPercent,
+    clampPercent(raw.visualCautionPercent, DEFAULT_SETTINGS.visualCautionPercent)
+  );
+  const visualHealthyPercent = Math.max(
+    visualCautionPercent,
+    clampPercent(raw.visualHealthyPercent, DEFAULT_SETTINGS.visualHealthyPercent)
+  );
+  const visualFullPercent = Math.max(
+    visualHealthyPercent,
+    clampPercent(raw.visualFullPercent, DEFAULT_SETTINGS.visualFullPercent)
+  );
   const remainingPercent = raw.remainingPercent === "" || raw.remainingPercent === undefined || raw.remainingPercent === null
     ? null
     : clampPercent(raw.remainingPercent, null);
@@ -75,6 +97,11 @@ export function normalizeAiAllowanceSettings(raw = {}) {
     label: normalizeText(raw.label),
     warningPercent,
     criticalPercent,
+    visualFullPercent,
+    visualHealthyPercent,
+    visualCautionPercent,
+    visualWarningPercent,
+    visualCriticalPercent,
     animation,
     remainingPercent,
     resetAt: normalizeResetAt(raw.resetAt),
@@ -91,6 +118,13 @@ export function hasAiAllowanceSettingsPayload(settings = {}) {
         Object.prototype.hasOwnProperty.call(settings, "window") ||
         Object.prototype.hasOwnProperty.call(settings, "source") ||
         Object.prototype.hasOwnProperty.call(settings, "animation") ||
+        Object.prototype.hasOwnProperty.call(settings, "warningPercent") ||
+        Object.prototype.hasOwnProperty.call(settings, "criticalPercent") ||
+        Object.prototype.hasOwnProperty.call(settings, "visualFullPercent") ||
+        Object.prototype.hasOwnProperty.call(settings, "visualHealthyPercent") ||
+        Object.prototype.hasOwnProperty.call(settings, "visualCautionPercent") ||
+        Object.prototype.hasOwnProperty.call(settings, "visualWarningPercent") ||
+        Object.prototype.hasOwnProperty.call(settings, "visualCriticalPercent") ||
         Object.prototype.hasOwnProperty.call(settings, "remainingPercent") ||
         Object.prototype.hasOwnProperty.call(settings, "resetAt")
       )

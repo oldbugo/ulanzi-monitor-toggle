@@ -28,6 +28,11 @@ test("normalizes allowance settings", () => {
     source: "manual",
     warningPercent: "20",
     criticalPercent: "30",
+    visualFullPercent: "90",
+    visualHealthyPercent: "70",
+    visualCautionPercent: "40",
+    visualWarningPercent: "20",
+    visualCriticalPercent: "50",
     remainingPercent: "105",
     resetAt: "2026-06-03T10:00:00+10:00"
   });
@@ -37,6 +42,11 @@ test("normalizes allowance settings", () => {
   assert.equal(settings.source, "manual");
   assert.equal(settings.warningPercent, 30);
   assert.equal(settings.criticalPercent, 30);
+  assert.equal(settings.visualFullPercent, 90);
+  assert.equal(settings.visualHealthyPercent, 70);
+  assert.equal(settings.visualCautionPercent, 40);
+  assert.equal(settings.visualWarningPercent, 20);
+  assert.equal(settings.visualCriticalPercent, 19);
   assert.equal(settings.remainingPercent, 100);
   assert.equal(settings.resetAt, "2026-06-03T00:00:00.000Z");
 });
@@ -77,6 +87,7 @@ test("snapshot level respects warning and critical thresholds", () => {
 });
 
 test("visual bands map remaining allowance boundaries", () => {
+  const settings = normalizeAiAllowanceSettings({});
   const cases = [
     [100, "full"],
     [76, "full"],
@@ -92,8 +103,25 @@ test("visual bands map remaining allowance boundaries", () => {
   ];
 
   for (const [remainingPercent, expectedBand] of cases) {
-    assert.equal(visualBandFromSnapshot({ remainingPercent }), expectedBand);
+    assert.equal(visualBandFromSnapshot({ remainingPercent }, settings), expectedBand);
   }
+});
+
+test("visual bands honor custom thresholds", () => {
+  const settings = normalizeAiAllowanceSettings({
+    visualFullPercent: 90,
+    visualHealthyPercent: 70,
+    visualCautionPercent: 40,
+    visualWarningPercent: 20,
+    visualCriticalPercent: 5
+  });
+
+  assert.equal(visualBandFromSnapshot({ remainingPercent: 90 }, settings), "full");
+  assert.equal(visualBandFromSnapshot({ remainingPercent: 89 }, settings), "healthy");
+  assert.equal(visualBandFromSnapshot({ remainingPercent: 69 }, settings), "caution");
+  assert.equal(visualBandFromSnapshot({ remainingPercent: 39 }, settings), "warning");
+  assert.equal(visualBandFromSnapshot({ remainingPercent: 6 }, settings), "warning");
+  assert.equal(visualBandFromSnapshot({ remainingPercent: 5 }, settings), "critical");
 });
 
 test("stale cache snapshot preserves cached allowance state", () => {
