@@ -133,14 +133,14 @@ The settings panel exposes the five background thresholds as `Full >=`, `Healthy
 Provider-specific backgrounds and transition GIFs can be added under:
 
 ```text
-resources/actions/ai-allowance/backgrounds/shared/<band>.png
-resources/actions/ai-allowance/backgrounds/codex/<band>.svg|png|jpg|jpeg|webp
-resources/actions/ai-allowance/backgrounds/claude/<band>.svg|png|jpg|jpeg|webp
+resources/actions/ai-allowance/backgrounds/shared/<band>.svg
+resources/actions/ai-allowance/backgrounds/codex/<band>.svg
+resources/actions/ai-allowance/backgrounds/claude/<band>.svg
 resources/actions/ai-allowance/transitions/codex/<band>.gif
 resources/actions/ai-allowance/transitions/claude/<band>.gif
 ```
 
-Static backgrounds should be square, textless full-background images. Provider-specific assets win first, then `backgrounds/shared` is used for both providers. Raster images are scaled into the 144x144 generated icon, but exporting them near 144x144 keeps Ulanzi icon updates lightweight. Transition GIFs should be 144x144 full-background animations for entering a band. Missing static assets fall back to generated band colors, and missing GIFs simply skip the transition.
+Static backgrounds must be textless 144x144 SVGs because the plugin generates the provider, percent, reset, and status text over the background. Provider-specific assets win first, then `backgrounds/shared` is used for both providers. Transition GIFs should be 144x144 full-background animations for entering a band. Missing static assets fall back to generated band colors, and missing GIFs simply skip the transition.
 
 Auto status is best-effort because providers do not expose a stable public API for personal Pro-plan allowance. Current sources:
 

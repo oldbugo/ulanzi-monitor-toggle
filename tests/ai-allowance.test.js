@@ -222,7 +222,31 @@ test("provider static background asset is used when present", () => {
   }
 });
 
-test("shared raster background asset is embedded when provider asset is absent", () => {
+test("shared SVG background asset is used when provider asset is absent", () => {
+  const resourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ai-allowance-background-"));
+  try {
+    const backgroundDir = path.join(resourceRoot, "backgrounds", "shared");
+    fs.mkdirSync(backgroundDir, { recursive: true });
+    fs.writeFileSync(path.join(backgroundDir, "caution.svg"), '<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144"><rect width="144" height="144" fill="#654321"/></svg>');
+    const settings = normalizeAiAllowanceSettings({ provider: "codex" });
+    const svg = generateAllowanceIconSvg({
+      provider: "codex",
+      window: "five_hour",
+      source: "auto_status",
+      status: "live",
+      level: "ok",
+      remainingPercent: 40,
+      resetAt: null
+    }, settings, new Date("2026-06-03T10:00:00.000Z"), { resourceRoot });
+
+    assert.match(svg, /data-background-provider="shared"/);
+    assert.match(svg, /fill="#654321"/);
+  } finally {
+    fs.rmSync(resourceRoot, { recursive: true, force: true });
+  }
+});
+
+test("raster static backgrounds are ignored for generated overlay icons", () => {
   const resourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ai-allowance-background-"));
   try {
     const backgroundDir = path.join(resourceRoot, "backgrounds", "shared");
@@ -239,9 +263,8 @@ test("shared raster background asset is embedded when provider asset is absent",
       resetAt: null
     }, settings, new Date("2026-06-03T10:00:00.000Z"), { resourceRoot });
 
-    assert.match(svg, /data-background-provider="shared"/);
-    assert.match(svg, /href="data:image\/png;base64,/);
-    assert.match(svg, /preserveAspectRatio="xMidYMid slice"/);
+    assert.doesNotMatch(svg, /href="data:image\/png;base64,/);
+    assert.match(svg, /fill="#854d0e"/);
   } finally {
     fs.rmSync(resourceRoot, { recursive: true, force: true });
   }
@@ -265,12 +288,8 @@ test("asset path helpers use provider-specific contract paths", () => {
     "resources/actions/ai-allowance/backgrounds/claude/warning.svg"
   );
   assert.equal(
-    allowanceBackgroundAssetPath("codex", "full", "png"),
-    "resources/actions/ai-allowance/backgrounds/codex/full.png"
-  );
-  assert.equal(
-    allowanceSharedBackgroundAssetPath("healthy", "webp"),
-    "resources/actions/ai-allowance/backgrounds/shared/healthy.webp"
+    allowanceSharedBackgroundAssetPath("healthy"),
+    "resources/actions/ai-allowance/backgrounds/shared/healthy.svg"
   );
   assert.equal(
     allowanceTransitionAssetPath("codex", "critical"),

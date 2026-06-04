@@ -32,13 +32,7 @@ const SCHEDULED_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const TRANSITION_ICON_SETTLE_MS = 1800;
 const AI_ALLOWANCE_RESOURCE_PATH = "resources/actions/ai-allowance";
 const VISUAL_BANDS = ["full", "healthy", "caution", "warning", "critical", "unknown"];
-const STATIC_BACKGROUND_EXTENSIONS = [".png", ".webp", ".jpg", ".jpeg", ".svg"];
-const STATIC_BACKGROUND_MIME_TYPES = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp"
-};
+const STATIC_BACKGROUND_EXTENSIONS = [".svg"];
 
 export {
   PROVIDER_ADAPTERS,
@@ -211,16 +205,12 @@ function absoluteAssetPath(resourceRoot, ...parts) {
   return path.join(resourceRoot, ...parts);
 }
 
-function normalizeAssetExtension(extension) {
-  return String(extension || "svg").trim().toLowerCase().replace(/^\./, "") || "svg";
+export function allowanceBackgroundAssetPath(provider, band) {
+  return relativeAssetPath("backgrounds", provider, `${band}.svg`);
 }
 
-export function allowanceBackgroundAssetPath(provider, band, extension = "svg") {
-  return relativeAssetPath("backgrounds", provider, `${band}.${normalizeAssetExtension(extension)}`);
-}
-
-export function allowanceSharedBackgroundAssetPath(band, extension = "png") {
-  return relativeAssetPath("backgrounds", "shared", `${band}.${normalizeAssetExtension(extension)}`);
+export function allowanceSharedBackgroundAssetPath(band) {
+  return relativeAssetPath("backgrounds", "shared", `${band}.svg`);
 }
 
 export function allowanceTransitionAssetPath(provider, band) {
@@ -246,16 +236,6 @@ function backgroundAssetCandidates(resourceRoot, provider, band) {
   })));
 }
 
-function rasterBackgroundLayerSvg(asset, band) {
-  const mimeType = STATIC_BACKGROUND_MIME_TYPES[asset.extension];
-  if (!mimeType) {
-    return "";
-  }
-
-  const data = fs.readFileSync(asset.file).toString("base64");
-  return `<image data-background-provider="${escapeSvgText(asset.label)}" data-background-band="${escapeSvgText(band)}" href="data:${mimeType};base64,${data}" x="0" y="0" width="144" height="144" preserveAspectRatio="xMidYMid slice"/>`;
-}
-
 function backgroundLayerSvg(snapshot, settings, band, colors, options = {}) {
   const resourceRoot = options.resourceRoot;
   if (resourceRoot && band !== "unknown") {
@@ -270,11 +250,6 @@ function backgroundLayerSvg(snapshot, settings, band, colors, options = {}) {
           return `<g data-background-provider="${escapeSvgText(asset.label)}" data-background-band="${escapeSvgText(band)}">${inner}</g>`;
         }
         continue;
-      }
-
-      const rasterLayer = rasterBackgroundLayerSvg(asset, band);
-      if (rasterLayer) {
-        return rasterLayer;
       }
     }
   }
