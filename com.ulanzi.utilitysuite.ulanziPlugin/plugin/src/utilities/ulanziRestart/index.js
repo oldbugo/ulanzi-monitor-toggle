@@ -77,10 +77,21 @@ export function createUlanziRestartUtility({ api, paths }) {
       helperArgs,
       {
         detached: false,
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: waitForExit ? ["ignore", "pipe", "pipe"] : "ignore",
         windowsHide: true
       }
     );
+
+    appendLog(`helper process spawned pid=${child.pid || ""}`);
+
+    if (!waitForExit) {
+      child.on("error", (error) => {
+        appendLog(`helper launch failed: ${error.message}`);
+        api.logMessage?.(`Ulanzi Restart helper launch failed: ${error.message}`);
+      });
+      child.unref();
+      return undefined;
+    }
 
     let stdout = "";
     let stderr = "";

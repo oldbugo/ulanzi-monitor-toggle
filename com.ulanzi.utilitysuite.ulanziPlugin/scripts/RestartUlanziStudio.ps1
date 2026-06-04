@@ -67,11 +67,57 @@ function Get-UlanziProcesses($installRoot) {
       $_.ExecutablePath -and
       [System.IO.Path]::GetFullPath($_.ExecutablePath).StartsWith($normalizedRoot, [System.StringComparison]::OrdinalIgnoreCase)
     } |
-    Sort-Object @{ Expression = { if ($_.Name -eq "UlanziDeck.exe") { 1 } else { 0 } } }, Name
+    Sort-Object @{ Expression = { if ($_.Name -eq "UlanziDeck.exe") { 0 } else { 1 } } }, Name
+}
+
+function Get-HelperProcessIds {
+  $ids = @{}
+  $current = Get-CimInstance Win32_Process -Filter "ProcessId = $PID" -ErrorAction SilentlyContinue
+
+  while ($current) {
+    $ids[[int]$current.ProcessId] = $true
+
+    if (-not $current.ParentProcessId) {
+      break
+    }
+
+    $current = Get-CimInstance Win32_Process -Filter "ProcessId = $($current.ParentProcessId)" -ErrorAction SilentlyContinue
+  }
+
+  return $ids
+}
+
+function Stop-UlanziProcesses {
+  param(
+    [array]$Processes,
+    [hashtable]$ProtectedIds
+  )
+
+  foreach ($process in $Processes) {
+    if ($ProtectedIds.ContainsKey([int]$process.ProcessId)) {
+      Write-RestartLog "skipping protected $($process.Name) pid=$($process.ProcessId)"
+      continue
+    }
+
+    try {
+      $liveProcess = Get-Process -Id $process.ProcessId -ErrorAction SilentlyContinue
+      if (-not $liveProcess) {
+        Write-RestartLog "already stopped $($process.Name) pid=$($process.ProcessId)"
+        continue
+      }
+
+      Write-RestartLog "stopping $($process.Name) pid=$($process.ProcessId)"
+      Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+      Write-RestartLog "stop requested for $($process.Name) pid=$($process.ProcessId)"
+    } catch {
+      Write-RestartLog "failed to stop pid=$($process.ProcessId): $($_.Exception.Message)"
+    }
+  }
 }
 
 $install = Resolve-UlanziInstall
 $processes = @(Get-UlanziProcesses $install.Root)
+$protectedIds = Get-HelperProcessIds
 
 Write-RestartLog "helper started; executable=$($install.Executable); processCount=$($processes.Count); dryRun=$($DryRun.IsPresent)"
 
@@ -93,14 +139,13 @@ if ($DryRun) {
 
 Start-Sleep -Seconds ([Math]::Max(0, $DelaySeconds))
 
-foreach ($process in $processes) {
-  try {
-    Write-RestartLog "stopping $($process.Name) pid=$($process.ProcessId)"
-    Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
-  } catch {
-    Write-RestartLog "failed to stop pid=$($process.ProcessId): $($_.Exception.Message)"
-  }
-}
+$mainProcesses = @($processes | Where-Object { $_.Name -eq "UlanziDeck.exe" })
+Stop-UlanziProcesses -Processes $mainProcesses -ProtectedIds $protectedIds
+
+Start-Sleep -Milliseconds 750
+
+$remainingProcesses = @(Get-UlanziProcesses $install.Root | Where-Object { $_.Name -ne "UlanziDeck.exe" })
+Stop-UlanziProcesses -Processes $remainingProcesses -ProtectedIds $protectedIds
 
 Start-Sleep -Seconds 1
 
