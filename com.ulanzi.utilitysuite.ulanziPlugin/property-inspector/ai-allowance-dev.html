@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>AI Allowance Dev Cycle</title>
+    <link rel="stylesheet" href="../libs/css/uspi.css">
+    <script src="../libs/js/constants.js"></script>
+    <script src="../libs/js/eventEmitter.js"></script>
+    <script src="../libs/js/timers.js"></script>
+    <script src="../libs/js/utils.js"></script>
+    <script src="../libs/js/ulanziApi.js"></script>
+    <style>
+      :root {
+        --uspi-label-width: 98px;
+      }
+
+      html,
+      body {
+        overflow-x: hidden;
+      }
+
+      .uspi-wrapper {
+        padding-top: 2px;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+
+      .uspi-wrapper .uspi-item {
+        align-items: center;
+        margin: 10px 8px;
+        max-width: calc(100% - 16px);
+        width: calc(100% - 16px);
+      }
+
+      .uspi-wrapper .uspi-item-label {
+        flex: 0 0 var(--uspi-label-width);
+        width: var(--uspi-label-width);
+      }
+
+      .uspi-wrapper .uspi-item-value {
+        flex: 1 1 auto;
+        max-width: 100%;
+        min-width: 0;
+        width: auto;
+      }
+
+      .stacked-value {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .toolbar button {
+        flex: 0 1 auto;
+        min-width: 86px;
+        width: auto;
+      }
+
+      .status {
+        min-height: 34px;
+        color: var(--uspi-unitcolor);
+        font-size: 12px;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      }
+
+      .status strong {
+        color: var(--uspi-color);
+        display: block;
+        font-weight: 600;
+      }
+
+      input[type="number"] {
+        min-width: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <form id="property-inspector" class="uspi-wrapper">
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Provider</div>
+        <select class="uspi-item-value" name="provider">
+          <option value="codex">Codex</option>
+          <option value="claude">Claude</option>
+        </select>
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Window</div>
+        <select class="uspi-item-value" name="window">
+          <option value="five_hour">Five hour</option>
+          <option value="weekly">Weekly</option>
+        </select>
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Sample</div>
+        <select class="uspi-item-value" name="sampleMode">
+          <option value="boundary">Boundary</option>
+          <option value="midpoint">Midpoint</option>
+        </select>
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Full >=</div>
+        <input class="uspi-item-value" name="visualFullPercent" type="number" min="0" max="100" step="1" value="80">
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Healthy >=</div>
+        <input class="uspi-item-value" name="visualHealthyPercent" type="number" min="0" max="100" step="1" value="65">
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Caution >=</div>
+        <input class="uspi-item-value" name="visualCautionPercent" type="number" min="0" max="100" step="1" value="40">
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Warning >=</div>
+        <input class="uspi-item-value" name="visualWarningPercent" type="number" min="0" max="100" step="1" value="20">
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Critical <=</div>
+        <input class="uspi-item-value" name="visualCriticalPercent" type="number" min="0" max="100" step="1" value="19">
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Preview</div>
+        <div class="uspi-item-value stacked-value">
+          <div class="toolbar">
+            <button id="render-preview" type="button">Render</button>
+          </div>
+          <div id="preview-status" class="status"></div>
+        </div>
+      </div>
+    </form>
+
+    <script>
+      const ACTION_UUID = "com.ulanzi.ulanzistudio.utilitysuite.aiallowancedev";
+      const FORM_SELECTOR = "#property-inspector";
+      const form = document.querySelector(FORM_SELECTOR);
+      const statusEl = document.getElementById("preview-status");
+      const renderButton = document.getElementById("render-preview");
+      let hasHydrated = false;
+      let hasAppliedSettings = false;
+      let hasUserEditedSettings = false;
+
+      function normalizePercent(value, fallback) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) {
+          return fallback;
+        }
+
+        return String(Math.max(0, Math.min(100, Math.round(number))));
+      }
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function normalizeSettings(settings) {
+        const visualWarningPercent = normalizePercent(settings.visualWarningPercent, "20");
+        const visualCriticalPercent = String(Math.min(
+          Number(normalizePercent(settings.visualCriticalPercent, "19")),
+          Math.max(0, Number(visualWarningPercent) - 1)
+        ));
+        const visualCautionPercent = String(Math.max(
+          Number(visualWarningPercent),
+          Number(normalizePercent(settings.visualCautionPercent, "40"))
+        ));
+        const visualHealthyPercent = String(Math.max(
+          Number(visualCautionPercent),
+          Number(normalizePercent(settings.visualHealthyPercent, "65"))
+        ));
+        const visualFullPercent = String(Math.max(
+          Number(visualHealthyPercent),
+          Number(normalizePercent(settings.visualFullPercent, "80"))
+        ));
+
+        return {
+          provider: settings.provider === "claude" ? "claude" : "codex",
+          window: settings.window === "weekly" ? "weekly" : "five_hour",
+          sampleMode: settings.sampleMode === "midpoint" ? "midpoint" : "boundary",
+          visualFullPercent,
+          visualHealthyPercent,
+          visualCautionPercent,
+          visualWarningPercent,
+          visualCriticalPercent
+        };
+      }
+
+      function applySettings(settings) {
+        if (!settings || Object.keys(settings).length === 0) {
+          return;
+        }
+
+        hasAppliedSettings = true;
+        Utils.setFormValue(normalizeSettings(settings), FORM_SELECTOR);
+      }
+
+      function readSettings() {
+        return normalizeSettings(Utils.getFormValue(FORM_SELECTOR));
+      }
+
+      function saveSettings() {
+        const settings = readSettings();
+        $UD.setSettings(settings);
+        $UD.sendParamFromPlugin(settings);
+      }
+
+      const debouncedSave = Utils.debounce(saveSettings, 150);
+
+      function setStatus(preview) {
+        if (!preview) {
+          statusEl.textContent = "No preview yet.";
+          return;
+        }
+
+        const reset = preview.resetAt ? new Date(preview.resetAt).toLocaleString() : "";
+        statusEl.innerHTML = `<strong>${escapeHtml(preview.provider)} ${escapeHtml(preview.band)} - ${escapeHtml(preview.remainingPercent)}%</strong>${escapeHtml(preview.windowLabel)}; ${escapeHtml(preview.sampleMode)}; reset ${escapeHtml(reset)}`;
+      }
+
+      function requestRender() {
+        $UD.sendToPlugin({ type: "renderAiAllowanceDevPreview", settings: readSettings() });
+      }
+
+      function hydrate() {
+        if (hasHydrated) {
+          return;
+        }
+
+        hasHydrated = true;
+        $UD.getSettings();
+      }
+
+      $UD.onConnected(hydrate);
+
+      $UD.onAdd((message) => {
+        hasAppliedSettings = false;
+        hasUserEditedSettings = false;
+        applySettings(message?.param || {});
+        hydrate();
+      });
+
+      $UD.onDidReceiveSettings((message) => {
+        if (hasUserEditedSettings) {
+          return;
+        }
+
+        applySettings(message?.settings || message?.param || {});
+        if (hasAppliedSettings && !hasUserEditedSettings) {
+          requestRender();
+        }
+      });
+
+      $UD.onSendToPropertyInspector((message) => {
+        const payload = message?.payload || {};
+        if (payload.type !== "aiAllowanceDevPreview") {
+          return;
+        }
+
+        if (payload.settings && !hasAppliedSettings && !hasUserEditedSettings) {
+          applySettings(payload.settings);
+        }
+
+        setStatus(payload.preview);
+      });
+
+      form.addEventListener("input", () => {
+        hasUserEditedSettings = true;
+        debouncedSave();
+      });
+      form.addEventListener("change", () => {
+        hasUserEditedSettings = true;
+        saveSettings();
+        requestRender();
+      });
+      renderButton.addEventListener("click", requestRender);
+
+      $UD.connect(ACTION_UUID);
+    </script>
+  </body>
+</html>

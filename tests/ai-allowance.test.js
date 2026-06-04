@@ -20,6 +20,11 @@ import {
   staleSnapshotFromCache,
   visualBandFromSnapshot
 } from "../com.ulanzi.utilitysuite.ulanziPlugin/plugin/src/utilities/aiAllowance/index.js";
+import {
+  DEV_VISUAL_BANDS,
+  createDevAllowanceSnapshot,
+  sampleRemainingForDevBand
+} from "../com.ulanzi.utilitysuite.ulanziPlugin/plugin/src/utilities/aiAllowanceDev/index.js";
 
 test("normalizes allowance settings", () => {
   const settings = normalizeAiAllowanceSettings({
@@ -138,6 +143,63 @@ test("visual bands honor custom thresholds", () => {
   assert.equal(visualBandFromSnapshot({ remainingPercent: 39 }, settings), "warning");
   assert.equal(visualBandFromSnapshot({ remainingPercent: 6 }, settings), "warning");
   assert.equal(visualBandFromSnapshot({ remainingPercent: 5 }, settings), "critical");
+});
+
+test("dev preview boundary samples map to each visual band", () => {
+  const settings = normalizeAiAllowanceSettings({});
+  const expectedRemaining = {
+    full: 100,
+    healthy: 79,
+    caution: 64,
+    warning: 39,
+    critical: 19
+  };
+
+  for (const band of DEV_VISUAL_BANDS) {
+    const remainingPercent = sampleRemainingForDevBand(band, settings, "boundary");
+    assert.equal(remainingPercent, expectedRemaining[band]);
+    assert.equal(visualBandFromSnapshot({ remainingPercent }, settings), band);
+  }
+});
+
+test("dev preview midpoint samples map to custom visual bands", () => {
+  const settings = normalizeAiAllowanceSettings({
+    visualFullPercent: 90,
+    visualHealthyPercent: 70,
+    visualCautionPercent: 40,
+    visualWarningPercent: 10,
+    visualCriticalPercent: 5
+  });
+
+  for (const band of DEV_VISUAL_BANDS) {
+    const remainingPercent = sampleRemainingForDevBand(band, settings, "midpoint");
+    assert.equal(visualBandFromSnapshot({ remainingPercent }, settings), band);
+  }
+});
+
+test("dev preview snapshot renders like live provider usage", () => {
+  const settings = {
+    ...normalizeAiAllowanceSettings({
+      provider: "claude",
+      window: "weekly",
+      visualFullPercent: 80,
+      visualHealthyPercent: 65,
+      visualCautionPercent: 40,
+      visualWarningPercent: 20,
+      visualCriticalPercent: 19
+    }),
+    sampleMode: "boundary"
+  };
+  const snapshot = createDevAllowanceSnapshot("warning", settings, new Date("2026-06-04T00:00:00.000Z"));
+  const svg = generateAllowanceIconSvg(snapshot, settings, new Date("2026-06-04T00:00:00.000Z"));
+
+  assert.equal(snapshot.source, "auto_status");
+  assert.equal(snapshot.status, "live");
+  assert.equal(snapshot.remainingPercent, 39);
+  assert.equal(visualBandFromSnapshot(snapshot, settings), "warning");
+  assert.match(svg, /CLAUDE/);
+  assert.match(svg, /39%/);
+  assert.match(svg, /LIVE/);
 });
 
 test("stale cache snapshot preserves cached allowance state", () => {

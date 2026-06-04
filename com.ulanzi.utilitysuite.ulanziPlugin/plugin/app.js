@@ -1,6 +1,7 @@
 import { createRuntimePaths } from "./src/runtime/paths.js";
 import { createUtilitySuite } from "./src/suite/createUtilitySuite.js";
 import { PLUGIN_UUID } from "./src/suite/identifiers.js";
+import { createAiAllowanceDevUtility } from "./src/utilities/aiAllowanceDev/index.js";
 import { createAiAllowanceUtility } from "./src/utilities/aiAllowance/index.js";
 import { createMonitorToggleUtility } from "./src/utilities/monitorToggle/index.js";
 import { createUlanziRestartUtility } from "./src/utilities/ulanziRestart/index.js";
@@ -9,6 +10,7 @@ let UlanziApi;
 const devCliMode =
   process.argv.includes("--list-displays") ||
   process.argv.includes("--ai-allowance-status") ||
+  process.argv.includes("--ai-allowance-dev-preview") ||
   process.argv.includes("--restart-ulanzi-dry-run") ||
   process.argv.includes("--restart-ulanzi-launch-dry-run");
 
@@ -30,6 +32,7 @@ const suite = createUtilitySuite({
   utilities: [
     createMonitorToggleUtility({ api, paths }),
     createAiAllowanceUtility({ api, paths }),
+    createAiAllowanceDevUtility({ api, paths }),
     createUlanziRestartUtility({ api, paths })
   ]
 });

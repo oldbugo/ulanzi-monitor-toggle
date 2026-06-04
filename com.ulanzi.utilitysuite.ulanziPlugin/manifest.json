@@ -82,6 +82,28 @@
       ]
     },
     {
+      "Name": "AI Allowance Dev Cycle",
+      "UUID": "com.ulanzi.ulanzistudio.utilitysuite.aiallowancedev",
+      "Icon": "resources/actions/ai-allowance/ok.svg",
+      "Tooltip": "Cycle AI allowance visual bands for development",
+      "SupportedInMultiActions": false,
+      "Controllers": [
+        "Keypad"
+      ],
+      "Devices": [
+        "D200H"
+      ],
+      "PropertyInspectorPath": "property-inspector/ai-allowance-dev.html",
+      "DisableAutomaticStates": true,
+      "States": [
+        {
+          "Name": "Preview",
+          "Image": "resources/actions/ai-allowance/ok.svg",
+          "Title": "Dev"
+        }
+      ]
+    },
+    {
       "Name": "Restart Ulanzi Studio",
       "UUID": "com.ulanzi.ulanzistudio.utilitysuite.ulanzirestart",
       "Icon": "resources/actions/ulanzi-restart/restart.svg",

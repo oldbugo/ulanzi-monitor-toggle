@@ -29,6 +29,8 @@ plugin/
         index.js
         model.js
         providers.js
+      aiAllowanceDev/
+        index.js
       monitorToggle/
         index.js
       ulanziRestart/
@@ -55,6 +57,8 @@ Provider usage responses are coalesced in memory for five minutes so multiple ke
 
 Rendering keeps visual bands separate from logical alert levels. Warning and critical alert thresholds still come from key settings, while the key background uses configurable visual thresholds with defaults matching `full` 100-80, `healthy` 79-65, `caution` 64-40, `warning` 39-20, and `critical` 19-0. The property inspector exposes `Full >=`, `Healthy >=`, `Caution >=`, `Warning >=`, and `Critical <=`; inverted visual thresholds are normalized before use. Provider-specific static SVG backgrounds are loaded from `resources/actions/ai-allowance/backgrounds/<provider>/<band>.svg` when present, then shared SVG backgrounds from `resources/actions/ai-allowance/backgrounds/shared/<band>.svg`. Missing assets fall back to generated SVG colors. Optional transition GIFs are loaded from `resources/actions/ai-allowance/transitions/<provider>/<band>.gif` only when a key enters a different known band. The final resting icon is always the generated static SVG so provider, remaining percent, reset time, and status text stay readable.
 
+The `aiAllowanceDev` action is a development-only visual-cycle key. It never calls providers or writes allowance cache. Each press cycles through `full`, `healthy`, `caution`, `warning`, and `critical` using synthetic `live` snapshots rendered by the same `generateAllowanceIconSvg` path as the real monitor. Its property inspector exposes provider, window, sample mode, and visual thresholds so Codex and Claude backgrounds can be checked against production-like reset and remaining-percent text.
+
 ## Utility Contract
 
 A utility module returns an object with:
@@ -80,4 +84,5 @@ Keep scripts and local state namespaced by utility so future tools do not share 
 
 - `monitorToggle`: toggles Windows display topology through the PowerShell DisplayConfig backend.
 - `aiAllowance`: best-effort Codex and Claude Pro allowance monitor with live local-auth status where available, plus manual five-hour and weekly reset tracking when providers do not expose readable allowance status.
+- `aiAllowanceDev`: development-only key that cycles synthetic AI allowance snapshots through the five visual bands for a selected provider/window.
 - `ulanziRestart`: launches a PowerShell helper through WMI so the helper is not a child of the Ulanzi plugin host. The helper resolves the Ulanzi Studio install path, stops only Ulanzi-owned processes under that install root, and starts `UlanziDeck.exe` again. The action listens to both `keydown` and `run` with a short duplicate guard, and writes restart diagnostics to `%LOCALAPPDATA%\UlanziUtilitySuite\ulanzi-restart\restart.log`.

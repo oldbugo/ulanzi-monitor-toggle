@@ -45,10 +45,12 @@ ulanzi-monitor-toggle/
         utilities/
           monitorToggle/
           aiAllowance/
+          aiAllowanceDev/
           ulanziRestart/
       plugin-common-node/
     property-inspector/
       ai-allowance.html
+      ai-allowance-dev.html
       monitor-toggle.html
     scripts/
       WindowsDisplayControl.ps1
@@ -77,12 +79,13 @@ npm run backend:list
 npm run node:list
 npm run ai-allowance:codex
 npm run ai-allowance:claude
+npm run ai-allowance:dev-preview
 npm run restart-ulanzi:dry-run
 npm run restart-ulanzi:launch-dry-run
 npm run test:ai-allowance
 ```
 
-`backend:list` and `node:list` only enumerate active displays. `ai-allowance:*` checks local authenticated status surfaces and does not run model requests or spend AI provider allowance. `restart-ulanzi:dry-run` only reports the Ulanzi executable and process IDs that would be restarted. `restart-ulanzi:launch-dry-run` validates the WMI helper launch handoff without stopping Ulanzi Studio. None of these commands disable, enable, restore, toggle monitors, or restart Ulanzi Studio.
+`backend:list` and `node:list` only enumerate active displays. `ai-allowance:*` checks local authenticated status surfaces and does not run model requests or spend AI provider allowance. `ai-allowance:dev-preview` renders synthetic preview metadata only. `restart-ulanzi:dry-run` only reports the Ulanzi executable and process IDs that would be restarted. `restart-ulanzi:launch-dry-run` validates the WMI helper launch handoff without stopping Ulanzi Studio. None of these commands disable, enable, restore, toggle monitors, or restart Ulanzi Studio.
 
 Copy the plugin into the local Ulanzi plugin folder:
 

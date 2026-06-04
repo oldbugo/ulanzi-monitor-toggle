@@ -39,10 +39,18 @@ Granular AI allowance backgrounds verified:
 | AI allowance index syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\utilities\aiAllowance\index.js` | Passed |
 | AI allowance model syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\utilities\aiAllowance\model.js` | Passed |
 | Dev Ulanzi API syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\runtime\devUlanziApi.js` | Passed |
-| AI allowance unit tests | `npm run test:ai-allowance` | Passed; 19 `node:test` cases, including visual band boundaries, custom visual thresholds, legacy visual threshold migration, static asset fallback, provider and shared SVG background loading, raster fallback behavior, and transition animation gating |
+| AI allowance unit tests | `npm run test:ai-allowance` | Passed; 22 `node:test` cases, including visual band boundaries, custom visual thresholds, legacy visual threshold migration, dev-cycle samples, static asset fallback, provider and shared SVG background loading, raster fallback behavior, and transition animation gating |
 | JSON parse | `npm run validate:json` | Passed |
 | Codex allowance CLI | `npm run ai-allowance:codex` | Passed; returned `live`; 45% remaining, 55% used |
 | Claude allowance CLI | `npm run ai-allowance:claude` | Passed; returned `live`; 26% remaining, 74% used |
+
+AI Allowance Dev Cycle action verified:
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Dev cycle syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\utilities\aiAllowanceDev\index.js` | Passed |
+| Dev preview CLI | `npm run ai-allowance:dev-preview` | Passed; returned Codex five-hour `full` preview at 100% remaining |
+| Claude warning preview CLI | `node .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\app.js --ai-allowance-dev-preview claude --band warning --window weekly --sample-mode boundary` | Passed; returned Claude weekly `warning` preview at 39% remaining |
 
 Restart Ulanzi Studio action verified:
 
