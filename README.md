@@ -82,7 +82,7 @@ npm run restart-ulanzi:launch-dry-run
 npm run test:ai-allowance
 ```
 
-`backend:list` and `node:list` only enumerate active displays. `ai-allowance:*` checks local authenticated status surfaces and does not run model requests or spend AI provider allowance. `restart-ulanzi:dry-run` only reports the Ulanzi executable and process IDs that would be restarted. `restart-ulanzi:launch-dry-run` validates the Node-to-PowerShell restart helper handoff without stopping Ulanzi Studio. None of these commands disable, enable, restore, toggle monitors, or restart Ulanzi Studio.
+`backend:list` and `node:list` only enumerate active displays. `ai-allowance:*` checks local authenticated status surfaces and does not run model requests or spend AI provider allowance. `restart-ulanzi:dry-run` only reports the Ulanzi executable and process IDs that would be restarted. `restart-ulanzi:launch-dry-run` validates the WMI helper launch handoff without stopping Ulanzi Studio. None of these commands disable, enable, restore, toggle monitors, or restart Ulanzi Studio.
 
 Copy the plugin into the local Ulanzi plugin folder:
 

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { contextFrom } from "../../runtime/messages.js";
-import { powershellFileArgs, runJsonPowerShell } from "../../runtime/powershell.js";
+import { powershellFileArgs } from "../../runtime/powershell.js";
 import { ULANZI_RESTART_ACTION_UUID } from "../../suite/identifiers.js";
 
 function svgBase64(svg) {
@@ -39,6 +39,14 @@ function truncateLogValue(value) {
   return `${normalized.slice(0, 797)}...`;
 }
 
+function psStringLiteral(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function windowsCommandArg(value) {
+  return `"${String(value).replace(/"/g, '\\"')}"`;
+}
+
 export function createUlanziRestartUtility({ api, paths }) {
   const scriptPath = path.join(paths.scriptsDir, "RestartUlanziStudio.ps1");
   const stateRoot = path.join(paths.stateRoot, "ulanzi-restart");
@@ -62,7 +70,99 @@ export function createUlanziRestartUtility({ api, paths }) {
     api.setStateIcon?.(context, restarting ? 1 : 0, restarting ? "Restarting" : "Restart");
   }
 
+  function helperCommandLine({ delaySeconds = 1, dryRun = false } = {}) {
+    const helperArgs = [
+      "powershell.exe",
+      ...powershellFileArgs(scriptPath, [
+        "-DelaySeconds",
+        String(delaySeconds),
+        "-LogPath",
+        logPath,
+        ...(dryRun ? ["-DryRun"] : [])
+      ])
+    ];
+
+    return helperArgs.map(windowsCommandArg).join(" ");
+  }
+
   function launchRestartHelper({ delaySeconds = 1, dryRun = false, waitForExit = false } = {}) {
+    const commandLine = helperCommandLine({ delaySeconds, dryRun });
+    const launchCommand = [
+      "$ErrorActionPreference = 'Stop'",
+      `$commandLine = ${psStringLiteral(commandLine)}`,
+      "$result = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $commandLine }",
+      "$returnValue = [int]$result.ReturnValue",
+      "if ($returnValue -ne 0) { throw \"Win32_Process.Create failed with returnValue=$returnValue\" }",
+      "[pscustomobject]@{ returnValue = $returnValue; processId = [int]$result.ProcessId; commandLine = $commandLine } | ConvertTo-Json -Compress"
+    ].join("; ");
+    const launcherArgs = [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      launchCommand
+    ];
+
+    appendLog(`helper launch requested via cim with script ${scriptPath}; dryRun=${dryRun}; waitForExit=${waitForExit}`);
+    const child = spawn(
+      "powershell.exe",
+      launcherArgs,
+      {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true
+      }
+    );
+
+    appendLog(`helper launcher spawned pid=${child.pid || ""}`);
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+      appendLog(`helper launcher stderr: ${truncateLogValue(chunk)}`);
+    });
+
+    const completion = new Promise((resolve, reject) => {
+      child.on("error", (error) => {
+        appendLog(`helper launcher failed: ${error.message}`);
+        api.logMessage?.(`Ulanzi Restart helper launch failed: ${error.message}`);
+        reject(error);
+      });
+
+      child.on("close", (code, signal) => {
+        appendLog(`helper launcher closed with code=${code}; signal=${signal || ""}`);
+        if (stdout.trim()) {
+          appendLog(`helper launcher stdout: ${truncateLogValue(stdout)}`);
+        }
+
+        if (code !== 0) {
+          reject(new Error(stderr.trim() || `PowerShell launcher exited with code ${code}`));
+          return;
+        }
+
+        try {
+          resolve(JSON.parse(stdout));
+        } catch (error) {
+          reject(new Error(`PowerShell launcher returned invalid JSON: ${error.message}`));
+        }
+      });
+    });
+
+    if (!waitForExit) {
+      completion.catch(() => {});
+      child.unref();
+      return undefined;
+    }
+
+    return completion;
+  }
+
+  function launchRestartHelperDirect({ delaySeconds = 1, dryRun = false } = {}) {
     const helperArgs = powershellFileArgs(scriptPath, [
       "-DelaySeconds",
       String(delaySeconds),
@@ -71,27 +171,18 @@ export function createUlanziRestartUtility({ api, paths }) {
       ...(dryRun ? ["-DryRun"] : [])
     ]);
 
-    appendLog(`helper launch requested with script ${scriptPath}; dryRun=${dryRun}; waitForExit=${waitForExit}`);
+    appendLog(`helper direct launch requested with script ${scriptPath}; dryRun=${dryRun}`);
     const child = spawn(
       "powershell.exe",
       helperArgs,
       {
         detached: false,
-        stdio: waitForExit ? ["ignore", "pipe", "pipe"] : "ignore",
+        stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true
       }
     );
 
-    appendLog(`helper process spawned pid=${child.pid || ""}`);
-
-    if (!waitForExit) {
-      child.on("error", (error) => {
-        appendLog(`helper launch failed: ${error.message}`);
-        api.logMessage?.(`Ulanzi Restart helper launch failed: ${error.message}`);
-      });
-      child.unref();
-      return undefined;
-    }
+    appendLog(`helper direct process spawned pid=${child.pid || ""}`);
 
     let stdout = "";
     let stderr = "";
@@ -107,15 +198,15 @@ export function createUlanziRestartUtility({ api, paths }) {
 
     const completion = new Promise((resolve, reject) => {
       child.on("error", (error) => {
-        appendLog(`helper launch failed: ${error.message}`);
+        appendLog(`helper direct launch failed: ${error.message}`);
         api.logMessage?.(`Ulanzi Restart helper launch failed: ${error.message}`);
         reject(error);
       });
 
       child.on("close", (code, signal) => {
-        appendLog(`helper process closed with code=${code}; signal=${signal || ""}`);
+        appendLog(`helper direct process closed with code=${code}; signal=${signal || ""}`);
         if (stdout.trim()) {
-          appendLog(`helper stdout: ${truncateLogValue(stdout)}`);
+          appendLog(`helper direct stdout: ${truncateLogValue(stdout)}`);
         }
 
         if (code !== 0) {
@@ -127,26 +218,24 @@ export function createUlanziRestartUtility({ api, paths }) {
       });
     });
 
-    if (!waitForExit) {
-      completion.catch(() => {});
-      return undefined;
-    }
-
     return completion;
   }
 
   async function dryRun() {
-    return runJsonPowerShell(scriptPath, ["-DryRun"]);
+    const stdout = await launchRestartHelperDirect({
+      delaySeconds: 0,
+      dryRun: true
+    });
+
+    return JSON.parse(stdout);
   }
 
   async function launchDryRun() {
-    const stdout = await launchRestartHelper({
+    return launchRestartHelper({
       delaySeconds: 0,
       dryRun: true,
       waitForExit: true
     });
-
-    return JSON.parse(stdout);
   }
 
   function triggerRestart(message, eventName) {
