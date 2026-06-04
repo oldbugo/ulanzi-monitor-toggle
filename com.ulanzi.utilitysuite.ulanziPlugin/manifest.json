@@ -80,6 +80,32 @@
           "Title": "Unknown"
         }
       ]
+    },
+    {
+      "Name": "Restart Ulanzi Studio",
+      "UUID": "com.ulanzi.ulanzistudio.utilitysuite.ulanzirestart",
+      "Icon": "resources/actions/ulanzi-restart/restart.svg",
+      "Tooltip": "Restart Ulanzi Studio",
+      "SupportedInMultiActions": false,
+      "Controllers": [
+        "Keypad"
+      ],
+      "Devices": [
+        "D200H"
+      ],
+      "DisableAutomaticStates": true,
+      "States": [
+        {
+          "Name": "Ready",
+          "Image": "resources/actions/ulanzi-restart/restart.svg",
+          "Title": "Restart"
+        },
+        {
+          "Name": "Restarting",
+          "Image": "resources/actions/ulanzi-restart/restarting.svg",
+          "Title": "Restarting"
+        }
+      ]
     }
   ]
 }

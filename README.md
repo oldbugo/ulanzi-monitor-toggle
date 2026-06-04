@@ -11,6 +11,7 @@ The suite is structured as one JavaScript plugin with multiple registered utilit
 - Monitor Toggle: refresh configured button icons after display changes.
 - Monitor Toggle: generate custom dock icons from SVG presets and user-selected colors.
 - AI Allowance Monitor: track Codex and Claude Pro allowance windows, with manual fallback when local authenticated status surfaces are unavailable.
+- Restart Ulanzi Studio: restart the Ulanzi desktop software from a D200H key.
 
 ## Requirements
 
@@ -44,6 +45,7 @@ ulanzi-monitor-toggle/
         utilities/
           monitorToggle/
           aiAllowance/
+          ulanziRestart/
       plugin-common-node/
     property-inspector/
       ai-allowance.html
@@ -51,9 +53,11 @@ ulanzi-monitor-toggle/
     scripts/
       WindowsDisplayControl.ps1
       WindowsDisplayWatcher.ps1
+      RestartUlanziStudio.ps1
     resources/
       actions/
         ai-allowance/
+        ulanzi-restart/
         toggle/
 ```
 
@@ -73,10 +77,11 @@ npm run backend:list
 npm run node:list
 npm run ai-allowance:codex
 npm run ai-allowance:claude
+npm run restart-ulanzi:dry-run
 npm run test:ai-allowance
 ```
 
-`backend:list` and `node:list` only enumerate active displays. `ai-allowance:*` checks local authenticated status surfaces and does not run model requests or spend AI provider allowance. None of these commands disable, enable, restore, or toggle monitors.
+`backend:list` and `node:list` only enumerate active displays. `ai-allowance:*` checks local authenticated status surfaces and does not run model requests or spend AI provider allowance. `restart-ulanzi:dry-run` only reports the Ulanzi executable and process IDs that would be restarted. None of these commands disable, enable, restore, toggle monitors, or restart Ulanzi Studio.
 
 Copy the plugin into the local Ulanzi plugin folder:
 
@@ -105,6 +110,14 @@ Snapshot files for Monitor Toggle are stored under:
 ```
 
 The utility also checks the legacy `%LOCALAPPDATA%\UlanziMonitorToggle` snapshot folder when restoring a monitor.
+
+## Configure Restart Ulanzi Studio
+
+1. Open Ulanzi Deck.
+2. Add `Ulanzi Utility Suite: Restart Ulanzi Studio` to a D200H key.
+3. Press the physical key to restart Ulanzi Studio.
+
+The restart action launches a detached PowerShell helper, waits briefly, stops only Ulanzi Studio processes under the detected install folder, then starts `UlanziDeck.exe` again.
 
 ## Configure AI Allowance Monitor
 

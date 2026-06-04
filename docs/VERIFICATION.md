@@ -44,6 +44,15 @@ Granular AI allowance backgrounds verified:
 | Codex allowance CLI | `npm run ai-allowance:codex` | Passed; returned `live`; 45% remaining, 55% used |
 | Claude allowance CLI | `npm run ai-allowance:claude` | Passed; returned `live`; 26% remaining, 74% used |
 
+Restart Ulanzi Studio action verified:
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Manifest JSON | `npm run validate:json` | Passed |
+| App syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\app.js` | Passed |
+| Restart utility syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\utilities\ulanziRestart\index.js` | Passed |
+| Restart dry run | `npm run restart-ulanzi:dry-run` | Passed; resolved `C:\Program Files (x86)\Ulanzi Studio\UlanziDeck.exe` and reported Ulanzi-owned processes without stopping them |
+
 ## 2026-06-03
 
 Environment:

@@ -3,9 +3,13 @@ import { createUtilitySuite } from "./src/suite/createUtilitySuite.js";
 import { PLUGIN_UUID } from "./src/suite/identifiers.js";
 import { createAiAllowanceUtility } from "./src/utilities/aiAllowance/index.js";
 import { createMonitorToggleUtility } from "./src/utilities/monitorToggle/index.js";
+import { createUlanziRestartUtility } from "./src/utilities/ulanziRestart/index.js";
 
 let UlanziApi;
-const devCliMode = process.argv.includes("--list-displays") || process.argv.includes("--ai-allowance-status");
+const devCliMode =
+  process.argv.includes("--list-displays") ||
+  process.argv.includes("--ai-allowance-status") ||
+  process.argv.includes("--restart-ulanzi-dry-run");
 
 try {
   UlanziApi = (await import("./plugin-common-node/index.js")).default;
@@ -24,7 +28,8 @@ const suite = createUtilitySuite({
   pluginUuid: PLUGIN_UUID,
   utilities: [
     createMonitorToggleUtility({ api, paths }),
-    createAiAllowanceUtility({ api, paths })
+    createAiAllowanceUtility({ api, paths }),
+    createUlanziRestartUtility({ api, paths })
   ]
 });
 

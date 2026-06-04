@@ -31,6 +31,8 @@ plugin/
         providers.js
       monitorToggle/
         index.js
+      ulanziRestart/
+        index.js
 ```
 
 `app.js` only bootstraps the suite. Runtime helpers own shared concerns such as path resolution, PowerShell execution, dev CLI fallback, and message parsing. `createUtilitySuite` registers action UUIDs and dispatches Ulanzi events to the correct utility module. `aiAllowance/model.js` owns shared allowance settings and status semantics; `aiAllowance/providers.js` isolates provider probing so live-status support can be added without changing the Ulanzi action runtime.
@@ -78,3 +80,4 @@ Keep scripts and local state namespaced by utility so future tools do not share 
 
 - `monitorToggle`: toggles Windows display topology through the PowerShell DisplayConfig backend.
 - `aiAllowance`: best-effort Codex and Claude Pro allowance monitor with live local-auth status where available, plus manual five-hour and weekly reset tracking when providers do not expose readable allowance status.
+- `ulanziRestart`: launches a detached PowerShell helper that resolves the Ulanzi Studio install path, stops only Ulanzi-owned processes under that install root, and starts `UlanziDeck.exe` again.
