@@ -11,13 +11,11 @@ import {
   WINDOW_LABELS,
   WINDOWS,
   hasAiAllowanceSettingsPayload,
-  manualSnapshotFromSettings,
+  notConnectedSnapshot,
   normalizeAiAllowanceSettings,
   normalizeResetAt,
-  rollResetAt,
-  snapshotLevel,
-  staleSnapshotFromCache,
-  unknownSnapshot
+  notConnectedSnapshotFromCache,
+  snapshotLevel
 } from "./model.js";
 import {
   PROVIDER_ADAPTERS,
@@ -44,24 +42,18 @@ export {
   WINDOWS,
   VISUAL_BANDS,
   hasAiAllowanceSettingsPayload,
-  manualSnapshotFromSettings,
   mergeClaudeOauthRefreshCredentials,
   normalizeClaudeOauthUsageSnapshot,
   normalizeCodexUsageSnapshot,
   normalizeAiAllowanceSettings,
   normalizeResetAt,
-  rollResetAt,
+  notConnectedSnapshot,
+  notConnectedSnapshotFromCache,
   runCommand,
-  snapshotLevel,
-  staleSnapshotFromCache,
-  unknownSnapshot
+  snapshotLevel
 };
 
 export async function resolveAllowanceSnapshot(settings, now = new Date()) {
-  if (settings.source === "manual") {
-    return manualSnapshotFromSettings(settings, now);
-  }
-
   return resolveAutoStatusSnapshot(settings, now);
 }
 
@@ -101,15 +93,7 @@ function snapshotTitle(snapshot, settings) {
     return `${label} ${snapshot.remainingPercent}%`;
   }
 
-  if (snapshot.status === "stale") {
-    return `${label} Stale`;
-  }
-
-  if (snapshot.status === "manual") {
-    return `${label} Manual`;
-  }
-
-  return `${label} Unknown`;
+  return `${label} Not connected`;
 }
 
 function snapshotSubtitle(snapshot, settings, now = new Date()) {
@@ -118,7 +102,9 @@ function snapshotSubtitle(snapshot, settings, now = new Date()) {
     return `${WINDOW_LABELS[settings.window]} resets ${reset}`;
   }
 
-  return `${WINDOW_LABELS[settings.window]} ${snapshot.status}`;
+  return snapshot.status === "not_connected"
+    ? `${WINDOW_LABELS[settings.window]} not connected`
+    : `${WINDOW_LABELS[settings.window]} ${snapshot.status}`;
 }
 
 function svgBase64(svg) {
@@ -172,11 +158,7 @@ export function visualBandFromSnapshot(snapshot, settings = {}) {
   return "warning";
 }
 
-function visualBandColors(band, source, status) {
-  if (band === "unknown" && status === "stale") {
-    return { background: "#475569", foreground: "#f8fafc", accent: "#cbd5e1" };
-  }
-
+function visualBandColors(band) {
   switch (band) {
     case "full":
       return { background: "#0f766e", foreground: "#ecfeff", accent: "#99f6e4" };
@@ -190,9 +172,6 @@ function visualBandColors(band, source, status) {
       return { background: "#991b1b", foreground: "#fee2e2", accent: "#fca5a5" };
     case "unknown":
     default:
-      if (source === "manual") {
-        return { background: "#1d4ed8", foreground: "#eff6ff", accent: "#93c5fd" };
-      }
       return { background: "#334155", foreground: "#e2e8f0", accent: "#94a3b8" };
   }
 }
@@ -259,24 +238,23 @@ function backgroundLayerSvg(snapshot, settings, band, colors, options = {}) {
 
 export function generateAllowanceIconSvg(snapshot, settings, now = new Date(), options = {}) {
   const band = visualBandFromSnapshot(snapshot, settings);
-  const colors = visualBandColors(band, snapshot.source, snapshot.status);
+  const colors = visualBandColors(band);
   const provider = settings.provider === "claude" ? "CLAUDE" : "CODEX";
+  const isNotConnected = snapshot.status === "not_connected" || band === "unknown";
   const percent = snapshot.remainingPercent === null || snapshot.remainingPercent === undefined
-    ? "?"
+    ? "--"
     : `${snapshot.remainingPercent}%`;
-  const reset = relativeTimeUntil(snapshot.resetAt, now) || WINDOW_LABELS[settings.window];
-  const mode = snapshot.status === "stale"
-    ? "STALE"
-    : snapshot.source === "manual"
-      ? "MANUAL"
-      : snapshot.status.toUpperCase();
+  const reset = isNotConnected
+    ? "No live data"
+    : relativeTimeUntil(snapshot.resetAt, now) || WINDOW_LABELS[settings.window];
+  const mode = isNotConnected ? "NOT CONN" : snapshot.status.toUpperCase();
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
   ${backgroundLayerSvg(snapshot, settings, band, colors, options)}
   <text x="72" y="30" text-anchor="middle" fill="${colors.accent}" stroke="#000000" stroke-opacity="0.18" stroke-width="3" paint-order="stroke" font-family="Arial, sans-serif" font-size="16" font-weight="700">${escapeSvgText(provider)}</text>
   <text x="72" y="78" text-anchor="middle" fill="${colors.foreground}" stroke="#000000" stroke-opacity="0.22" stroke-width="4" paint-order="stroke" font-family="Arial, sans-serif" font-size="38" font-weight="800">${escapeSvgText(percent)}</text>
-  <text x="72" y="105" text-anchor="middle" fill="${colors.foreground}" stroke="#000000" stroke-opacity="0.20" stroke-width="3" paint-order="stroke" font-family="Arial, sans-serif" font-size="15" font-weight="700">${escapeSvgText(reset)}</text>
+  <text x="72" y="105" text-anchor="middle" fill="${colors.foreground}" stroke="#000000" stroke-opacity="0.20" stroke-width="3" paint-order="stroke" font-family="Arial, sans-serif" font-size="${isNotConnected ? 13 : 15}" font-weight="700">${escapeSvgText(reset)}</text>
   <text x="72" y="126" text-anchor="middle" fill="${colors.accent}" stroke="#000000" stroke-opacity="0.18" stroke-width="2" paint-order="stroke" font-family="Arial, sans-serif" font-size="12" font-weight="700">${escapeSvgText(mode)}</text>
 </svg>`;
 }
@@ -354,11 +332,19 @@ export function createAiAllowanceUtility({ api, paths }) {
     return settingsByContext.get(context) || normalizeAiAllowanceSettings({});
   }
 
-  function writeSnapshot(context, settings, snapshot) {
+  function cacheLiveSnapshot(context, settings, snapshot) {
+    snapshotsByContext.set(context, snapshot);
+    if (
+      snapshot.status !== "live" ||
+      snapshot.remainingPercent === null ||
+      snapshot.remainingPercent === undefined
+    ) {
+      return;
+    }
+
     fs.mkdirSync(stateRoot, { recursive: true });
     const record = { settings, snapshot };
     fs.writeFileSync(statePathFor(context), JSON.stringify(record, null, 2));
-    snapshotsByContext.set(context, snapshot);
   }
 
   function clearTransitionTimer(context) {
@@ -450,8 +436,8 @@ export function createAiAllowanceUtility({ api, paths }) {
     setStaticButtonIcon(context, settings, snapshot, title, subtitle, now);
   }
 
-  function showCachedSnapshot(context, settings, options = {}) {
-    const snapshot = staleSnapshotFromCache(readCachedRecord(context), settings);
+  function showCachedNotConnectedSnapshot(context, settings, options = {}) {
+    const snapshot = notConnectedSnapshotFromCache(readCachedRecord(context), settings);
     if (!snapshot) {
       return null;
     }
@@ -471,10 +457,10 @@ export function createAiAllowanceUtility({ api, paths }) {
     try {
       snapshot = await resolveAllowanceSnapshot(settings);
     } catch (error) {
-      snapshot = showCachedSnapshot(context, settings) || unknownSnapshot(settings, error.message);
+      snapshot = showCachedNotConnectedSnapshot(context, settings) || notConnectedSnapshot(settings, error.message);
     }
 
-    writeSnapshot(context, settings, snapshot);
+    cacheLiveSnapshot(context, settings, snapshot);
     setButtonIcon(context, settings, snapshot);
 
     if (options.sendToInspector) {
@@ -491,7 +477,7 @@ export function createAiAllowanceUtility({ api, paths }) {
       return;
     }
 
-    showCachedSnapshot(context, settings);
+    showCachedNotConnectedSnapshot(context, settings);
     refreshContext(context, settings).catch((error) => {
       api.logMessage?.(`AI Allowance Monitor refresh failed: ${error.message}`);
       api.showAlert?.(context);
@@ -521,14 +507,12 @@ export function createAiAllowanceUtility({ api, paths }) {
     const provider = argv[index + 1] || "codex";
     const windowArgIndex = argv.indexOf("--window");
     const window = windowArgIndex === -1 ? "five_hour" : argv[windowArgIndex + 1];
-    const sourceArgIndex = argv.indexOf("--source");
-    const source = sourceArgIndex === -1 ? "auto_status" : argv[sourceArgIndex + 1];
-    const settings = normalizeAiAllowanceSettings({ provider, window, source });
+    const settings = normalizeAiAllowanceSettings({ provider, window });
     let snapshot;
     try {
       snapshot = await resolveAllowanceSnapshot(settings);
     } catch (error) {
-      snapshot = unknownSnapshot(settings, error.message);
+      snapshot = notConnectedSnapshot(settings, error.message);
     }
 
     console.log(JSON.stringify({ settings, snapshot }, null, 2));

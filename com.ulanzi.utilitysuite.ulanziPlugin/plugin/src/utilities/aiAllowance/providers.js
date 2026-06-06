@@ -458,12 +458,12 @@ async function detectProviderCli(adapter) {
   return result.stdout || result.stderr || adapter.command;
 }
 
-function unsupportedSnapshot(settings, adapter, now, cliVersion, message) {
+function providerNotConnectedSnapshot(settings, adapter, now, cliVersion, message) {
   return {
     provider: settings.provider,
     window: settings.window,
     source: "auto_status",
-    status: "unsupported",
+    status: "not_connected",
     level: "unknown",
     remainingPercent: null,
     resetAt: null,
@@ -476,7 +476,7 @@ function unsupportedSnapshot(settings, adapter, now, cliVersion, message) {
 export async function resolveAutoStatusSnapshot(settings, now = new Date()) {
   const adapter = PROVIDER_ADAPTERS[settings.provider];
   if (!adapter) {
-    return unsupportedSnapshot(
+    return providerNotConnectedSnapshot(
       settings,
       { label: settings.provider },
       now,
@@ -489,7 +489,7 @@ export async function resolveAutoStatusSnapshot(settings, now = new Date()) {
   try {
     cliVersion = await detectProviderCli(adapter);
   } catch (error) {
-    return unsupportedSnapshot(
+    return providerNotConnectedSnapshot(
       settings,
       adapter,
       now,
@@ -517,11 +517,11 @@ export async function resolveAutoStatusSnapshot(settings, now = new Date()) {
   const desktopContext = settings.provider === "claude"
     ? " Claude Desktop's Windows app profile is app-container encrypted; run Claude Code /login to create .credentials.json, or set CLAUDE_CODE_OAUTH_TOKEN from `claude setup-token`, then restart Ulanzi Studio."
     : "";
-  return unsupportedSnapshot(
+  return providerNotConnectedSnapshot(
     settings,
     adapter,
     now,
     cliVersion,
-    `${adapter.label} is installed, but no readable local allowance source is available.${desktopContext} Use manual mode.`
+    `${adapter.label} is installed, but no readable local allowance source is available.${desktopContext}`
   );
 }

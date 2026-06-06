@@ -9,15 +9,13 @@ import {
   allowanceSharedBackgroundAssetPath,
   allowanceTransitionAssetPath,
   generateAllowanceIconSvg,
-  manualSnapshotFromSettings,
   mergeClaudeOauthRefreshCredentials,
   normalizeClaudeOauthUsageSnapshot,
   normalizeCodexUsageSnapshot,
   normalizeAiAllowanceSettings,
-  rollResetAt,
+  notConnectedSnapshotFromCache,
   shouldUseTransitionAnimation,
   snapshotLevel,
-  staleSnapshotFromCache,
   visualBandFromSnapshot
 } from "../com.ulanzi.utilitysuite.ulanziPlugin/plugin/src/utilities/aiAllowance/index.js";
 import {
@@ -30,7 +28,7 @@ test("normalizes allowance settings", () => {
   const settings = normalizeAiAllowanceSettings({
     provider: "bad",
     window: "weekly",
-    source: "manual",
+    source: "legacy_source",
     warningPercent: "20",
     criticalPercent: "30",
     visualFullPercent: "90",
@@ -44,7 +42,7 @@ test("normalizes allowance settings", () => {
 
   assert.equal(settings.provider, "codex");
   assert.equal(settings.window, "weekly");
-  assert.equal(settings.source, "manual");
+  assert.equal(settings.source, "auto_status");
   assert.equal(settings.warningPercent, 30);
   assert.equal(settings.criticalPercent, 30);
   assert.equal(settings.visualFullPercent, 90);
@@ -52,8 +50,8 @@ test("normalizes allowance settings", () => {
   assert.equal(settings.visualCautionPercent, 40);
   assert.equal(settings.visualWarningPercent, 20);
   assert.equal(settings.visualCriticalPercent, 19);
-  assert.equal(settings.remainingPercent, 100);
-  assert.equal(settings.resetAt, "2026-06-03T00:00:00.000Z");
+  assert.equal(Object.prototype.hasOwnProperty.call(settings, "remainingPercent"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(settings, "resetAt"), false);
 });
 
 test("migrates legacy visual threshold defaults", () => {
@@ -72,27 +70,16 @@ test("migrates legacy visual threshold defaults", () => {
   assert.equal(settings.visualCriticalPercent, 19);
 });
 
-test("rolls expired five-hour reset windows forward", () => {
-  const resetAt = rollResetAt(
-    "2026-06-03T00:00:00.000Z",
-    "five_hour",
-    new Date("2026-06-03T11:30:00.000Z")
-  );
-
-  assert.equal(resetAt, "2026-06-03T15:00:00.000Z");
-});
-
-test("manual snapshot resets remaining to 100 after elapsed window", () => {
+test("legacy source settings are normalized to auto status", () => {
   const settings = normalizeAiAllowanceSettings({
-    source: "manual",
+    source: "legacy_source",
     remainingPercent: 12,
     resetAt: "2026-06-03T00:00:00.000Z"
   });
-  const snapshot = manualSnapshotFromSettings(settings, new Date("2026-06-03T06:00:00.000Z"));
 
-  assert.equal(snapshot.remainingPercent, 100);
-  assert.equal(snapshot.level, "ok");
-  assert.equal(snapshot.resetAt, "2026-06-03T10:00:00.000Z");
+  assert.equal(settings.source, "auto_status");
+  assert.equal(Object.prototype.hasOwnProperty.call(settings, "remainingPercent"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(settings, "resetAt"), false);
 });
 
 test("snapshot level respects warning and critical thresholds", () => {
@@ -202,12 +189,11 @@ test("dev preview snapshot renders like live provider usage", () => {
   assert.match(svg, /LIVE/);
 });
 
-test("stale cache snapshot preserves cached allowance state", () => {
+test("cache fallback renders not connected without cached allowance percentage", () => {
   const settings = normalizeAiAllowanceSettings({
-    source: "auto_status",
-    remainingPercent: 50
+    source: "auto_status"
   });
-  const stale = staleSnapshotFromCache({
+  const snapshot = notConnectedSnapshotFromCache({
     snapshot: {
       source: "auto_status",
       remainingPercent: 18,
@@ -217,26 +203,55 @@ test("stale cache snapshot preserves cached allowance state", () => {
     }
   }, settings, new Date("2026-06-03T11:00:00.000Z"));
 
-  assert.equal(stale.status, "stale");
-  assert.equal(stale.remainingPercent, 18);
-  assert.equal(stale.level, "warning");
-  assert.equal(stale.resetAt, "2026-06-03T12:00:00.000Z");
+  assert.equal(snapshot.status, "not_connected");
+  assert.equal(snapshot.remainingPercent, null);
+  assert.equal(snapshot.level, "unknown");
+  assert.equal(snapshot.resetAt, null);
+  assert.equal(snapshot.cachedRemainingPercent, 18);
+  assert.equal(snapshot.cachedResetAt, "2026-06-03T12:00:00.000Z");
 });
 
-test("unknown status rendering uses an explicit unknown marker", () => {
+test("cache fallback ignores non-live or mismatched cached snapshots", () => {
+  const settings = normalizeAiAllowanceSettings({
+    provider: "claude",
+    window: "weekly"
+  });
+
+  assert.equal(notConnectedSnapshotFromCache({
+    snapshot: {
+      provider: "claude",
+      window: "weekly",
+      status: "not_connected",
+      fetchedAt: "2026-06-03T10:00:00.000Z"
+    }
+  }, settings), null);
+
+  assert.equal(notConnectedSnapshotFromCache({
+    snapshot: {
+      provider: "codex",
+      window: "weekly",
+      status: "live",
+      remainingPercent: 50,
+      fetchedAt: "2026-06-03T10:00:00.000Z"
+    }
+  }, settings), null);
+});
+
+test("not connected rendering uses a grey explicit marker", () => {
   const settings = normalizeAiAllowanceSettings({});
   const svg = generateAllowanceIconSvg({
     provider: "codex",
     window: "five_hour",
     source: "auto_status",
-    status: "unknown",
+    status: "not_connected",
     level: "unknown",
     remainingPercent: null,
     resetAt: null
   }, settings, new Date("2026-06-03T10:00:00.000Z"));
 
-  assert.match(svg, />\?<\/text>/);
-  assert.match(svg, />UNKNOWN<\/text>/);
+  assert.match(svg, /fill="#334155"/);
+  assert.match(svg, />--<\/text>/);
+  assert.match(svg, />NOT CONN<\/text>/);
 });
 
 test("missing static background asset falls back to generated band color", () => {

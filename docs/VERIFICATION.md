@@ -82,9 +82,9 @@ Checks performed:
 | AI allowance module syntax | `node --check .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\src\utilities\aiAllowance\index.js` and related module checks | Passed |
 | AI allowance unit tests | `npm run test:ai-allowance` | Passed; 9 `node:test` cases, including Claude remaining-percentage display guard |
 | Codex allowance CLI | `npm run ai-allowance:codex` | Passed; returned `live` with CLI version `codex-cli 0.46.0` |
-| Claude allowance CLI | `npm run ai-allowance:claude` | Passed; returned `unsupported` with CLI version `2.0.14 (Claude Code)` |
+| Claude allowance CLI | `npm run ai-allowance:claude` | Passed; returned no-live status with CLI version `2.0.14 (Claude Code)` |
 | Codex weekly allowance CLI | `node .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\app.js --ai-allowance-status codex --window weekly` | Passed; returned `live` |
-| Claude weekly allowance CLI | `node .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\app.js --ai-allowance-status claude --window weekly` | Passed; returned `unsupported` |
+| Claude weekly allowance CLI | `node .\com.ulanzi.utilitysuite.ulanziPlugin\plugin\app.js --ai-allowance-status claude --window weekly` | Passed; returned no-live status |
 | Local Ulanzi install | Copy package folder to `%APPDATA%\Ulanzi\UlanziDeck\Plugins\com.ulanzi.utilitysuite.ulanziPlugin` | Passed |
 
 ## 2026-06-03 AI Allowance Monitor Preflight
@@ -116,10 +116,10 @@ Latest local allowance checks:
 | --- | --- | --- | --- |
 | Codex | Five hour | `codex_chatgpt_auth` | `live`; displays 63% remaining, with 37% used as supporting metadata; reset at `2026-06-03T13:15:20.000Z`; endpoint reported plan type `plus` |
 | Codex | Weekly | `codex_chatgpt_auth` | `live`; 39% used, 61% remaining, reset at `2026-06-08T11:13:51.000Z`; endpoint reported plan type `plus` |
-| Claude | Five hour | Local OAuth | `unsupported`; Claude Code is installed but no readable OAuth token or credential file exists; use manual mode |
-| Claude | Weekly | Local OAuth | `unsupported`; Claude Code is installed but no readable OAuth token or credential file exists; use manual mode |
+| Claude | Five hour | Local OAuth | Not connected; Claude Code is installed but no readable OAuth token or credential file exists |
+| Claude | Weekly | Local OAuth | Not connected; Claude Code is installed but no readable OAuth token or credential file exists |
 
-Outcome: V1 now supports live Codex allowance status through the local Codex ChatGPT auth path. Claude remains manual-first on this machine unless Claude Code OAuth credentials are configured or a future browser/app bridge is added.
+Outcome: V1 now supports live Codex allowance status through the local Codex ChatGPT auth path. Claude shows not connected on this machine unless Claude Code OAuth credentials are configured or a future browser/app bridge is added.
 
 ## 2026-06-02
 

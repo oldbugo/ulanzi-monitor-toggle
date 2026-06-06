@@ -1,6 +1,6 @@
 export const PROVIDERS = new Set(["codex", "claude"]);
 export const WINDOWS = new Set(["five_hour", "weekly"]);
-export const SOURCES = new Set(["auto_status", "manual"]);
+export const SOURCES = new Set(["auto_status"]);
 export const ANIMATIONS = new Set(["transition", "off"]);
 
 export const PROVIDER_LABELS = {
@@ -11,11 +11,6 @@ export const PROVIDER_LABELS = {
 export const WINDOW_LABELS = {
   five_hour: "5h",
   weekly: "Week"
-};
-
-const WINDOW_DURATIONS_MS = {
-  five_hour: 5 * 60 * 60 * 1000,
-  weekly: 7 * 24 * 60 * 60 * 1000
 };
 
 const LEGACY_DEFAULT_VISUAL_THRESHOLDS = {
@@ -38,10 +33,7 @@ const DEFAULT_SETTINGS = {
   visualCautionPercent: 40,
   visualWarningPercent: 20,
   visualCriticalPercent: 19,
-  animation: "transition",
-  remainingPercent: "",
-  resetAt: "",
-  notes: ""
+  animation: "transition"
 };
 
 function clampPercent(value, fallback = null) {
@@ -102,10 +94,6 @@ export function normalizeAiAllowanceSettings(raw = {}) {
     visualHealthyPercent,
     clampPercent(visualSource.visualFullPercent, DEFAULT_SETTINGS.visualFullPercent)
   );
-  const remainingPercent = raw.remainingPercent === "" || raw.remainingPercent === undefined || raw.remainingPercent === null
-    ? null
-    : clampPercent(raw.remainingPercent, null);
-
   return {
     provider,
     window,
@@ -118,10 +106,7 @@ export function normalizeAiAllowanceSettings(raw = {}) {
     visualCautionPercent,
     visualWarningPercent,
     visualCriticalPercent,
-    animation,
-    remainingPercent,
-    resetAt: normalizeResetAt(raw.resetAt),
-    notes: normalizeText(raw.notes, 160)
+    animation
   };
 }
 
@@ -140,27 +125,9 @@ export function hasAiAllowanceSettingsPayload(settings = {}) {
         Object.prototype.hasOwnProperty.call(settings, "visualHealthyPercent") ||
         Object.prototype.hasOwnProperty.call(settings, "visualCautionPercent") ||
         Object.prototype.hasOwnProperty.call(settings, "visualWarningPercent") ||
-        Object.prototype.hasOwnProperty.call(settings, "visualCriticalPercent") ||
-        Object.prototype.hasOwnProperty.call(settings, "remainingPercent") ||
-        Object.prototype.hasOwnProperty.call(settings, "resetAt")
+        Object.prototype.hasOwnProperty.call(settings, "visualCriticalPercent")
       )
   );
-}
-
-export function rollResetAt(resetAt, window, now = new Date()) {
-  const duration = WINDOW_DURATIONS_MS[window] || WINDOW_DURATIONS_MS.five_hour;
-  const initial = normalizeResetAt(resetAt);
-  if (!initial) {
-    return "";
-  }
-
-  let timestamp = new Date(initial).getTime();
-  const nowTime = now.getTime();
-  while (timestamp <= nowTime) {
-    timestamp += duration;
-  }
-
-  return new Date(timestamp).toISOString();
 }
 
 export function snapshotLevel(snapshot, settings) {
@@ -179,54 +146,36 @@ export function snapshotLevel(snapshot, settings) {
   return "ok";
 }
 
-export function manualSnapshotFromSettings(settings, now = new Date()) {
-  const resetAt = settings.resetAt ? rollResetAt(settings.resetAt, settings.window, now) : "";
-  const resetPassed = Boolean(settings.resetAt && resetAt !== settings.resetAt);
-  const remainingPercent = resetPassed
-    ? 100
-    : settings.remainingPercent;
-  const hasRemaining = remainingPercent !== null && remainingPercent !== undefined;
-  const hasReset = Boolean(resetAt);
-  const message = hasRemaining
-    ? "Manual allowance value."
-    : "Set manual remaining percent to track this allowance.";
-
-  const snapshot = {
-    provider: settings.provider,
-    window: settings.window,
-    source: "manual",
-    status: hasRemaining || hasReset ? "manual" : "unknown",
-    remainingPercent: hasRemaining ? remainingPercent : null,
-    resetAt: resetAt || null,
-    fetchedAt: now.toISOString(),
-    message,
-    cliVersion: null
-  };
-
-  return {
-    ...snapshot,
-    level: snapshotLevel(snapshot, settings)
-  };
-}
-
-export function unknownSnapshot(settings, message, now = new Date()) {
+export function notConnectedSnapshot(settings, message, now = new Date(), metadata = {}) {
   return {
     provider: settings.provider,
     window: settings.window,
     source: settings.source,
-    status: "unknown",
+    status: "not_connected",
     level: "unknown",
     remainingPercent: null,
     resetAt: null,
     fetchedAt: now.toISOString(),
     cliVersion: null,
-    message
+    message,
+    ...metadata
   };
 }
 
-export function staleSnapshotFromCache(record, settings, now = new Date()) {
+export function notConnectedSnapshotFromCache(record, settings, now = new Date()) {
   const cached = record?.snapshot || record;
   if (!cached || typeof cached !== "object") {
+    return null;
+  }
+
+  if (cached.status && cached.status !== "live") {
+    return null;
+  }
+
+  if (
+    (cached.provider && cached.provider !== settings.provider) ||
+    (cached.window && cached.window !== settings.window)
+  ) {
     return null;
   }
 
@@ -239,21 +188,15 @@ export function staleSnapshotFromCache(record, settings, now = new Date()) {
     ? null
     : clampPercent(cached.remainingPercent, null);
   const resetAt = normalizeResetAt(cached.resetAt);
-  const snapshot = {
-    provider: settings.provider,
-    window: settings.window,
-    source: cached.source || settings.source,
-    status: "stale",
-    remainingPercent,
-    resetAt: resetAt || null,
-    fetchedAt,
-    staleAt: now.toISOString(),
-    cliVersion: cached.cliVersion || null,
-    message: `Using cached allowance state from ${fetchedAt}. Refresh to verify.`
-  };
-
-  return {
-    ...snapshot,
-    level: snapshotLevel(snapshot, settings)
-  };
+  return notConnectedSnapshot(
+    settings,
+    `Not connected. Last live allowance state was from ${fetchedAt}.`,
+    now,
+    {
+      cachedFetchedAt: fetchedAt,
+      cachedRemainingPercent: remainingPercent,
+      cachedResetAt: resetAt || null,
+      cliVersion: cached.cliVersion || null
+    }
+  );
 }

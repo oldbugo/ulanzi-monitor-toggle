@@ -10,7 +10,7 @@ The suite is structured as one JavaScript plugin with multiple registered utilit
 - Monitor Toggle: discover active Windows displays in the property inspector.
 - Monitor Toggle: refresh configured button icons after display changes.
 - Monitor Toggle: generate custom dock icons from SVG presets and user-selected colors.
-- AI Allowance Monitor: track Codex and Claude Pro allowance windows, with manual fallback when local authenticated status surfaces are unavailable.
+- AI Allowance Monitor: track Codex and Claude Pro allowance windows, with a grey not-connected state when live local status is unavailable.
 - Restart Ulanzi Studio: restart the Ulanzi desktop software from a D200H key.
 
 ## Requirements
@@ -136,12 +136,13 @@ Restart attempts are logged at:
 3. Choose `Codex` or `Claude`.
 4. Choose `Five hour` or `Weekly`.
 5. Keep animation set to `Transition` unless you want static-only icons.
-6. Use `Auto status` first. If it reports unsupported, switch to `Manual`.
-7. In manual mode, enter the remaining percentage and reset time.
+6. Tune the visual thresholds only if you want different background bands.
 
 The monitor refreshes when the key is pressed. It does not decrement usage or run model requests.
 
 Displayed percentages always mean allowance left. `100%` means the full window is available; `30%` means `70%` has been used.
+
+When live provider status cannot be reached, the key renders as `Not connected` with a grey background. Cached files may provide last-live context in the property inspector, but cached percentages are not displayed as current allowance.
 
 AI Allowance Monitor uses five visual bands for the remaining allowance:
 
@@ -165,7 +166,7 @@ resources/actions/ai-allowance/transitions/claude/<band>.gif
 
 Static backgrounds must be textless 144x144 SVGs because the plugin generates the provider, percent, reset, and status text over the background. Provider-specific assets win first, then `backgrounds/shared` is used for both providers. Transition GIFs should be 144x144 full-background animations for entering a band. Missing static assets fall back to generated band colors, and missing GIFs simply skip the transition.
 
-Auto status is best-effort because providers do not expose a stable public API for personal Pro-plan allowance. Current sources:
+Live status is best-effort because providers do not expose a stable public API for personal Pro-plan allowance. Current sources:
 
 - Codex: reads the existing local Codex ChatGPT auth file at `%USERPROFILE%\.codex\auth.json`, calls the ChatGPT allowance endpoint, and caches only the normalized allowance snapshot.
 - Claude: reads `CLAUDE_CODE_OAUTH_TOKEN`, or Claude Code OAuth credentials from `%USERPROFILE%\.claude\.credentials.json` / `CLAUDE_CONFIG_DIR`, then calls Anthropic's OAuth usage endpoint.

@@ -75,9 +75,9 @@
           "Title": "Critical"
         },
         {
-          "Name": "Unknown",
+          "Name": "Not connected",
           "Image": "resources/actions/ai-allowance/unknown.svg",
-          "Title": "Unknown"
+          "Title": "Not connected"
         }
       ]
     },

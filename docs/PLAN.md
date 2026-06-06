@@ -55,8 +55,8 @@ Completed in the initial scaffold:
 - Added Codex and Claude allowance settings for five-hour and weekly windows.
 - Added Codex live allowance lookup through the local Codex ChatGPT auth file and ChatGPT usage endpoint.
 - Added Claude OAuth usage lookup when Claude Code credentials are available.
-- Added manual allowance fallback and reset-window tracking for unsupported live sources.
-- Added focused unit tests for allowance settings, reset behavior, status levels, stale cache rendering, and provider response normalization.
+- Added grey not-connected rendering for provider states without live allowance data.
+- Added focused unit tests for allowance settings, status levels, not-connected cache rendering, and provider response normalization.
 
 Not yet completed:
 
@@ -71,11 +71,9 @@ Not yet completed:
 This utility is focused on personal Pro-plan allowance windows, not API token billing. The feature should remain explicit about source quality:
 
 - `live`: a local authenticated source returned a current allowance snapshot.
-- `manual`: the user-entered remaining percentage and reset timer are being used.
-- `stale`: the latest refresh failed, but a previous cached snapshot exists.
-- `unsupported`: no readable local source is available for the configured provider.
+- `not_connected`: no live allowance snapshot is currently available. Cached records can explain when the last live value was seen, but cached percentages are not rendered as current allowance.
 
-V1 does not use browser scraping and does not store provider credentials. Codex live status can use the existing Codex ChatGPT auth file at `%USERPROFILE%\.codex\auth.json`. Claude live status requires `CLAUDE_CODE_OAUTH_TOKEN` or Claude Code OAuth credentials at `%USERPROFILE%\.claude\.credentials.json` / `CLAUDE_CONFIG_DIR`; the Claude Windows desktop app profile is app-container encrypted and is manual-first until a supported bridge is added.
+V1 does not use browser scraping and does not store provider credentials. Codex live status can use the existing Codex ChatGPT auth file at `%USERPROFILE%\.codex\auth.json`. Claude live status requires `CLAUDE_CODE_OAUTH_TOKEN` or Claude Code OAuth credentials at `%USERPROFILE%\.claude\.credentials.json` / `CLAUDE_CONFIG_DIR`; the Claude Windows desktop app profile is app-container encrypted and shows not connected until a supported bridge or Claude Code credential is available.
 
 ## Architecture
 

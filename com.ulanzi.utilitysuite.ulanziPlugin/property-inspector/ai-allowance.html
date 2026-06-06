@@ -77,22 +77,8 @@
         font-weight: 600;
       }
 
-      .manual-only {
-        display: none;
-      }
-
-      .manual-mode .manual-only {
-        display: flex;
-      }
-
       input[type="number"] {
         min-width: 0;
-      }
-
-      textarea.uspi-item-value {
-        height: 64px;
-        min-height: 64px;
-        resize: vertical;
       }
     </style>
   </head>
@@ -111,14 +97,6 @@
         <select class="uspi-item-value" name="window">
           <option value="five_hour">Five hour</option>
           <option value="weekly">Weekly</option>
-        </select>
-      </div>
-
-      <div class="uspi-item">
-        <div class="uspi-item-label" data-localize>Source</div>
-        <select class="uspi-item-value" name="source">
-          <option value="auto_status">Auto status</option>
-          <option value="manual">Manual</option>
         </select>
       </div>
 
@@ -160,16 +138,6 @@
         <input class="uspi-item-value" name="visualCriticalPercent" type="number" min="0" max="100" step="1" value="19">
       </div>
 
-      <div class="uspi-item manual-only">
-        <div class="uspi-item-label" data-localize>Remaining</div>
-        <input class="uspi-item-value" name="remainingPercent" type="number" min="0" max="100" step="1" placeholder="0-100">
-      </div>
-
-      <div class="uspi-item manual-only">
-        <div class="uspi-item-label" data-localize>Reset at</div>
-        <input class="uspi-item-value" name="resetAt" type="datetime-local">
-      </div>
-
       <div class="uspi-item">
         <div class="uspi-item-label" data-localize>Warning</div>
         <input class="uspi-item-value" name="warningPercent" type="number" min="0" max="100" step="1" value="25">
@@ -180,18 +148,11 @@
         <input class="uspi-item-value" name="criticalPercent" type="number" min="0" max="100" step="1" value="10">
       </div>
 
-      <div class="uspi-item manual-only">
-        <div class="uspi-item-label" data-localize>Notes</div>
-        <textarea class="uspi-item-value" name="notes" maxlength="160" placeholder="Optional"></textarea>
-      </div>
-
       <div class="uspi-item">
         <div class="uspi-item-label" data-localize>Status</div>
         <div class="uspi-item-value stacked-value">
           <div class="toolbar">
             <button id="refresh-status" type="button">Refresh</button>
-            <button id="reset-five" type="button">+5h</button>
-            <button id="reset-week" type="button">+7d</button>
           </div>
           <div id="allowance-status" class="status"></div>
         </div>
@@ -204,19 +165,9 @@
       const form = document.querySelector(FORM_SELECTOR);
       const statusEl = document.getElementById("allowance-status");
       const refreshButton = document.getElementById("refresh-status");
-      const resetFiveButton = document.getElementById("reset-five");
-      const resetWeekButton = document.getElementById("reset-week");
       let hasHydrated = false;
       let hasAppliedSettings = false;
       let hasUserEditedSettings = false;
-
-      function pad(value) {
-        return String(value).padStart(2, "0");
-      }
-
-      function toLocalInputValue(date) {
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-      }
 
       function normalizePercent(value, fallback) {
         const number = Number(value);
@@ -234,10 +185,6 @@
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
-      }
-
-      function syncModeVisibility() {
-        form.classList.toggle("manual-mode", form.elements.source.value === "manual");
       }
 
       function normalizeSettings(settings) {
@@ -270,7 +217,7 @@
         return {
           provider: settings.provider === "claude" ? "claude" : "codex",
           window: settings.window === "weekly" ? "weekly" : "five_hour",
-          source: settings.source === "manual" ? "manual" : "auto_status",
+          source: "auto_status",
           label: String(settings.label || "").trim(),
           animation: settings.animation === "off" ? "off" : "transition",
           warningPercent: normalizePercent(settings.warningPercent, "25"),
@@ -279,10 +226,7 @@
           visualHealthyPercent,
           visualCautionPercent,
           visualWarningPercent,
-          visualCriticalPercent,
-          remainingPercent: settings.remainingPercent === "" ? "" : normalizePercent(settings.remainingPercent, ""),
-          resetAt: settings.resetAt || "",
-          notes: String(settings.notes || "").trim()
+          visualCriticalPercent
         };
       }
 
@@ -300,23 +244,19 @@
               Object.prototype.hasOwnProperty.call(settings, "visualHealthyPercent") ||
               Object.prototype.hasOwnProperty.call(settings, "visualCautionPercent") ||
               Object.prototype.hasOwnProperty.call(settings, "visualWarningPercent") ||
-              Object.prototype.hasOwnProperty.call(settings, "visualCriticalPercent") ||
-              Object.prototype.hasOwnProperty.call(settings, "remainingPercent") ||
-              Object.prototype.hasOwnProperty.call(settings, "resetAt")
+              Object.prototype.hasOwnProperty.call(settings, "visualCriticalPercent")
             )
         );
       }
 
       function applySettings(settings) {
         if (!hasSettings(settings)) {
-          syncModeVisibility();
           return;
         }
 
         const normalized = normalizeSettings(settings || {});
         hasAppliedSettings = true;
         Utils.setFormValue(normalized, FORM_SELECTOR);
-        syncModeVisibility();
       }
 
       function readSettings() {
@@ -342,28 +282,25 @@
           return;
         }
 
-        const remaining = snapshot.remainingPercent === null || snapshot.remainingPercent === undefined
-          ? "Unknown"
-          : `${snapshot.remainingPercent}%`;
+        const isLive = snapshot.status === "live" &&
+          snapshot.remainingPercent !== null &&
+          snapshot.remainingPercent !== undefined;
+        if (!isLive) {
+          const lastLive = snapshot.cachedFetchedAt
+            ? `Last live: ${new Date(snapshot.cachedFetchedAt).toLocaleString()}<br>`
+            : "";
+          statusEl.innerHTML = `<strong>Not connected</strong>${lastLive}${escapeHtml(snapshot.message || "")}`;
+          return;
+        }
+
+        const remaining = `${snapshot.remainingPercent}% remaining`;
         const reset = snapshot.resetAt ? new Date(snapshot.resetAt).toLocaleString() : "No reset time";
-        const source = snapshot.source === "manual" ? "Manual" : "Auto";
-        statusEl.innerHTML = `<strong>${escapeHtml(remaining)} - ${escapeHtml(snapshot.status)}</strong>${escapeHtml(source)}; ${escapeHtml(reset)}<br>${escapeHtml(snapshot.message || "")}`;
+        statusEl.innerHTML = `<strong>${escapeHtml(remaining)}</strong>Resets: ${escapeHtml(reset)}<br>${escapeHtml(snapshot.message || "")}`;
       }
 
       function requestStatus() {
         setStatus(null);
         $UD.sendToPlugin({ type: "refreshAllowance", settings: readSettings() });
-      }
-
-      function setResetHours(hours) {
-        const date = new Date(Date.now() + hours * 60 * 60 * 1000);
-        form.elements.resetAt.value = toLocalInputValue(date);
-        form.elements.source.value = "manual";
-        if (!form.elements.remainingPercent.value) {
-          form.elements.remainingPercent.value = "100";
-        }
-        syncModeVisibility();
-        saveSettings();
       }
 
       function hydrate() {
@@ -372,7 +309,6 @@
         }
 
         hasHydrated = true;
-        syncModeVisibility();
         $UD.getSettings();
       }
 
@@ -415,15 +351,11 @@
       });
       form.addEventListener("change", () => {
         hasUserEditedSettings = true;
-        syncModeVisibility();
         saveSettings();
         requestStatus();
       });
       refreshButton.addEventListener("click", requestStatus);
-      resetFiveButton.addEventListener("click", () => setResetHours(5));
-      resetWeekButton.addEventListener("click", () => setResetHours(24 * 7));
 
-      syncModeVisibility();
       $UD.connect(ACTION_UUID);
     </script>
   </body>
