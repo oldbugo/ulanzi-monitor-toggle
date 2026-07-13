@@ -2,7 +2,7 @@
   "Author": "Local prototype",
   "Name": "Monitor Toggle",
   "Description": "Toggle selected Windows displays from the active desktop topology.",
-  "Version": "0.1.0",
+  "Version": "0.1.1",
   "UUID": "com.ulanzi.ulanzistudio.monitortoggle",
   "Type": "JavaScript",
   "CodePath": "plugin/app.js",
