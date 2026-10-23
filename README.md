@@ -1,5 +1,7 @@
 # Ulanzi Monitor Toggle
 
+[![Available on Ulanzi Community Store](https://raw.githubusercontent.com/narlei/ulanzicommunitystore/main/docs/badges/ulanzi-community-store.svg)](https://ulanzicommunitystore.narlei.com)
+
 Windows monitor toggle plugin for the Ulanzi D200H controller.
 
 The plugin lets a Ulanzi key disable or re-enable selected Windows displays from the active desktop topology. It can target one monitor or a configured monitor group, and the dock icon shows whether the selected monitor set is currently active or inactive.
