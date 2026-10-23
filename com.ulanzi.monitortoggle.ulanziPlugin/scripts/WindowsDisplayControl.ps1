@@ -22,6 +22,7 @@ using System.Runtime.InteropServices;
 
 public static class DisplayConfigController
 {
+    public static Ulanzi.MonitorToggle.Audio.AudioRestoreReport AudioPreservation { get; private set; }
     private const int ERROR_SUCCESS = 0;
     private const int ERROR_INSUFFICIENT_BUFFER = 122;
 
@@ -572,14 +573,24 @@ public static class DisplayConfigController
 
     private static void Apply(DISPLAYCONFIG_PATH_INFO[] paths, DISPLAYCONFIG_MODE_INFO[] modes)
     {
-        int result = SetDisplayConfig(
-            (uint)paths.Length,
-            paths,
-            (uint)modes.Length,
-            modes,
-            SetFlags());
+        // Capture immediately before the topology change, never from a saved layout.
+        var audio = Ulanzi.MonitorToggle.Audio.AudioDefaultsGuard.Capture();
+        try
+        {
+            int result = SetDisplayConfig(
+                (uint)paths.Length,
+                paths,
+                (uint)modes.Length,
+                modes,
+                SetFlags());
 
-        ThrowIfWin32(result, "SetDisplayConfig");
+            ThrowIfWin32(result, "SetDisplayConfig");
+        }
+        finally
+        {
+            // A failed Windows call can still cause device notifications.
+            AudioPreservation = audio.Complete();
+        }
     }
 
     private static uint QueryFlags()
@@ -1096,7 +1107,8 @@ public static class DisplayConfigController
 }
 "@
 
-Add-Type -TypeDefinition $source
+$audioSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'WindowsAudioDefaults.cs') -Raw
+Add-Type -TypeDefinition ($source + "`n" + $audioSource)
 
 function Split-TargetKeys {
     param([string]$Value)
@@ -1114,6 +1126,10 @@ function Split-TargetKeys {
 
 function Write-Result {
     param([object]$Value)
+
+    if ($null -ne [DisplayConfigController]::AudioPreservation) {
+        $Value | Add-Member -NotePropertyName audioPreservation -NotePropertyValue ([DisplayConfigController]::AudioPreservation)
+    }
 
     if ($Pretty) {
         $Value | ConvertTo-Json -Depth 8

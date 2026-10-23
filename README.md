@@ -6,6 +6,8 @@ The plugin lets a Ulanzi key disable or re-enable selected Windows displays from
 
 This project avoids bundling a native executable. The JavaScript plugin calls a source-visible PowerShell script, which compiles an in-memory C# wrapper around documented Windows DisplayConfig APIs.
 
+See [changes](CHANGELOG.md) for the audio-preservation fix, verified behavior and remaining limits. Audio restoration uses an undocumented Windows PolicyConfig interface; details are in the [audio notes](docs/AUDIO_PRESERVATION.md).
+
 ## Features
 
 - Toggle a single monitor on or off from a D200H key.
@@ -17,6 +19,7 @@ This project avoids bundling a native executable. The JavaScript plugin calls a 
 - Generate custom dock icons from SVG presets and user-selected colors.
 - Preserve display topology as much as Windows allows, including position, resolution, refresh rate, rotation, and primary display state.
 - Refuse to disable every active display.
+- Preserve the selected playback and communications outputs across a monitor toggle when those devices remain available. See [audio preservation and limitations](docs/AUDIO_PRESERVATION.md).
 
 ## Requirements
 
@@ -79,6 +82,7 @@ Run the non-destructive setup checks:
 npm run validate:json
 npm run backend:list
 npm run node:list
+npm test
 ```
 
 `backend:list` and `node:list` are non-destructive. They should print JSON describing the currently active displays.

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { serializeOperation } from "./serialize-operation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,6 +11,7 @@ const pluginRoot = path.resolve(__dirname, "..");
 const windowsDisplayControlPath = path.join(pluginRoot, "scripts", "WindowsDisplayControl.ps1");
 const windowsDisplayWatcherPath = path.join(pluginRoot, "scripts", "WindowsDisplayWatcher.ps1");
 const stateRoot = path.join(process.env.LOCALAPPDATA || os.tmpdir(), "UlanziMonitorToggle");
+const runToggle = serializeOperation(toggle);
 
 let UlanziApi;
 const devCliMode = process.argv.includes("--list-displays");
@@ -203,7 +205,7 @@ function handleSettingsMessage(message = {}) {
 
   if (pendingRunsByContext.has(context)) {
     pendingRunsByContext.delete(context);
-    toggle(context, settings).catch((error) => {
+    runToggle(context, settings).catch((error) => {
       $UD.logMessage?.(`Monitor Toggle failed: ${error.message}`);
       $UD.showAlert?.(context);
     });
@@ -254,7 +256,11 @@ function runWindowsDisplayControl(action, options = {}) {
       }
 
       try {
-        resolve(JSON.parse(stdout));
+        const result = JSON.parse(stdout);
+        for (const warning of result.audioPreservation?.Warnings || []) {
+          $UD.logMessage?.(`Monitor Toggle audio preservation: ${warning}`);
+        }
+        resolve(result);
       } catch (error) {
         reject(new Error(`WindowsDisplayControl returned invalid JSON: ${error.message}\n${stdout}`));
       }
@@ -656,7 +662,7 @@ $UD.onRun?.((message) => {
     return;
   }
 
-  toggle(context, settings).catch((error) => {
+  runToggle(context, settings).catch((error) => {
     $UD.logMessage?.(`Monitor Toggle failed: ${error.message}`);
     $UD.showAlert?.(context);
   });
